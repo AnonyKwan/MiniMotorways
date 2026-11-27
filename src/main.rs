@@ -1087,6 +1087,21 @@ fn end_stroke(g: &mut Game) {
     if g.stroke.is_empty() {
         return;
     }
+    // A road that ends against a shop's side or back looks joined but isn't: say so.
+    let inside = |q: (i32, i32)| q.0 >= 0 && q.1 >= 0 && q.0 < W && q.1 < H;
+    let touches_shop_wrongly = g.stroke.iter().filter(|(_, built)| *built).any(|&(p, _)| {
+        // A tile right in front of a driveway is fine, whatever else it touches.
+        if matches!(g.sim.cell((p.0, p.1 - 1)), Cell::Door(_)) {
+            return false;
+        }
+        little_lanes::map::DIRS.iter().any(|d| {
+            let q = (p.0 + d.0, p.1 + d.1);
+            inside(q) && matches!(g.sim.cell(q), Cell::Dest(_) | Cell::Park(_) | Cell::Door(_))
+        })
+    });
+    if touches_shop_wrongly {
+        toast(g, "Shops only connect at their driveway, the arrow in front");
+    }
     g.undo.push(std::mem::take(&mut g.stroke));
     if g.undo.len() > UNDO_DEPTH {
         g.undo.remove(0);

@@ -1441,11 +1441,8 @@ pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32, safe: Rect, shapes: bool) {
                 let py = by + r * 1.6 + cy as f32 * gap;
                 let on_the_way = k < d.assigned as usize;
                 let c = if on_the_way { alpha(col, 0.35) } else { col };
-                if shapes {
-                    draw_shape(d.color, px, py, r * 1.15, c);
-                } else {
-                    draw_circle(px, py, r, c);
-                }
+                // Pins always carry their colour's shape, so colour is never the only cue.
+                draw_shape(d.color, px, py, r * 1.15, c);
             }
         }
         if danger > 0.0 || d.pins > d.pin_limit() {

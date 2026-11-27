@@ -2,7 +2,7 @@
 //! Everything is built from flat-shaded low-poly meshes generated each frame, so no model
 //! or image files are needed. Lighting is baked per face from a single sun direction.
 use little_lanes::map::{idx, Pos, Terrain, DIRS, H, W};
-use little_lanes::sim::{Car, CarState, Cell, Dest, Sim};
+use little_lanes::sim::{Car, CarState, Cell, Dest, Junction, Sim};
 use macroquad::models::{draw_mesh, Mesh, Vertex};
 use macroquad::prelude::*;
 
@@ -71,7 +71,9 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(hud_h: f32) -> Scene {
+    /// Camera that fits the whole board between the top bar and the bottom inset, then zooms by `zoom` (1 = whole board)
+    /// and shifts by `pan` tiles.
+    pub fn new(hud_h: f32, bottom: f32, zoom: f32, pan: Vec2) -> Scene {
         let (sw, sh) = (screen_width(), screen_height());
         let fovy: f32 = 34f32.to_radians();
         let pitch: f32 = 90f32.to_radians();
@@ -107,8 +109,9 @@ impl Scene {
         // then nudge the target so the board is centred in that space.
         let mut target = vec3(W as f32 * 0.5, 0.0, H as f32 * 0.5);
         let avail_w = sw - 2.0 * margin;
-        let avail_h = sh - hud_h - 2.0 * margin;
+        let avail_h = sh - hud_h - bottom - 2.0 * margin;
         let mut sc = build(target, 40.0);
+        let mut fit = 40.0;
         for _ in 0..3 {
             let (mut lo, mut hi) = (5.0f32, 400.0f32);
             for _ in 0..30 {
@@ -121,6 +124,7 @@ impl Scene {
                 }
             }
             sc = build(target, hi);
+            fit = hi;
             let (min, max) = bbox(&sc);
             let want = vec2(sw * 0.5, hud_h + margin + avail_h * 0.5);
             let have = (min + max) * 0.5;
@@ -131,7 +135,10 @@ impl Scene {
                 target += vec3(g0.x - g1.x, 0.0, g0.y - g1.y);
             }
         }
-        sc
+        if zoom == 1.0 && pan == Vec2::ZERO {
+            return sc;
+        }
+        build(target + vec3(pan.x, 0.0, pan.y), fit / zoom)
     }
 
     pub fn to_screen(&self, p: Vec3) -> Vec2 {
@@ -485,6 +492,9 @@ fn draw_terrain(mb: &mut Mb, s: &Sim, time: f32) {
                 continue;
             }
             slab_tile(mb, x, z, HILL_Y, GROUND_Y, 0.4, &hill, HILL, CLIFF);
+            if s.cells[idx((x, z))] != Cell::Empty {
+                continue;
+            }
             let (fx, fz) = (x as f32, z as f32);
             if hash(x, z, 7) < 0.35 {
                 let c = vec3(fx + 0.3 + hash(x, z, 8) * 0.4, HILL_Y, fz + 0.3 + hash(x, z, 9) * 0.4);
@@ -512,6 +522,23 @@ fn connects(s: &Sim, from: Cell, from_pos: Pos, to: Pos) -> bool {
     }
 }
 
+/// Height of the road surface on a tile: on top of hills, at ground level elsewhere.
+fn road_h(s: &Sim, p: Pos) -> f32 {
+    match terrain_at(s, p.0, p.1) {
+        Some(Terrain::Hill) => HILL_Y,
+        _ => GROUND_Y,
+    }
+}
+
+const HWY_Y: f32 = 0.7;
+const RAMP: f32 = 0.9;
+
+/// Height along a highway at distance `d` from its start, with ramps at both ends.
+fn hwy_height(d: f32, len: f32) -> f32 {
+    let up = (d / RAMP).clamp(0.0, 1.0).min(((len - d) / RAMP).clamp(0.0, 1.0));
+    up * up * (3.0 - 2.0 * up) * HWY_Y
+}
+
 fn draw_roads(mb: &mut Mb, s: &Sim) {
     for (layer, (w, y, c)) in [(0.38, 0.006, CURB), (0.31, 0.012, ASPHALT)].into_iter().enumerate() {
         for z in 0..H {
@@ -520,24 +547,79 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                 if !matches!(cell, Cell::Road | Cell::Door(_)) {
                     continue;
                 }
-                let ctr = vec3(x as f32 + 0.5, y, z as f32 + 0.5);
-                mb.disk(ctr, w, 16, c);
+                let hy = road_h(s, (x, z));
+                let on_water = terrain_at(s, x, z) == Some(Terrain::Water);
+                let ctr = vec3(x as f32 + 0.5, y + hy + if on_water { 0.06 } else { 0.0 }, z as f32 + 0.5);
                 let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, cell, (x, z), (x + d.0, z + d.1))).collect();
+                if layer == 0 && on_water {
+                    // Bridge deck, pillar and railings
+                    mb.boxx(vec3(ctr.x, 0.0, ctr.z), vec3(0.86, 0.1, 0.86), vec2(1.0, 0.0), Color::new(0.85, 0.84, 0.8, 1.0));
+                    mb.boxx(vec3(ctr.x, WATER_Y / 2.0, ctr.z), vec3(0.16, -WATER_Y, 0.16), vec2(1.0, 0.0), Color::new(0.7, 0.69, 0.66, 1.0));
+                    for d in DIRS {
+                        if links.contains(&d) {
+                            continue;
+                        }
+                        let (dx, dz) = (d.0 as f32, d.1 as f32);
+                        let rc = vec3(ctr.x + dx * 0.4, 0.12, ctr.z + dz * 0.4);
+                        let size = if d.0 == 0 { vec3(0.86, 0.1, 0.05) } else { vec3(0.05, 0.1, 0.86) };
+                        mb.boxx(rc, size, vec2(1.0, 0.0), Color::new(0.93, 0.92, 0.88, 1.0));
+                    }
+                }
+                let junction_here = s.junctions[idx((x, z))];
+                if junction_here == Junction::Roundabout && cell == Cell::Road {
+                    // A roundabout widens into a ring around a planted island.
+                    mb.disk(ctr, w + 0.1, 28, c);
+                } else {
+                    mb.disk(ctr, w, 16, c);
+                }
                 for d in &links {
                     let (dx, dz) = (d.0 as f32, d.1 as f32);
-                    let end = ctr + vec3(dx * 0.5, 0.0, dz * 0.5);
+                    let nh = road_h(s, (x + d.0, z + d.1));
+                    let edge_y = y + (hy + nh) * 0.5 + if on_water { 0.06 } else { 0.0 };
+                    let end = vec3(ctr.x + dx * 0.5, edge_y, ctr.z + dz * 0.5);
                     let side = vec3(-dz, 0.0, dx) * w;
                     mb.flat(&[ctr + side, end + side, end - side, ctr - side], c);
                 }
                 if layer == 1 {
-                    // Dashed centre line on straight pieces; parking bays at shop doors.
-                    let my = y + 0.004;
+                    let my = ctr.y + 0.004;
+                    let junction = s.junctions[idx((x, z))];
                     if let Cell::Door(_) = cell {
                         for i in 0..3 {
                             let lx = ctr.x - 0.2 + i as f32 * 0.2;
                             mb.rect_y(lx - 0.015, ctr.z - 0.05, lx + 0.015, ctr.z + 0.25, my, MARKING);
                         }
-                    } else if links.len() == 2 && links[0].0 == -links[1].0 && links[0].1 == -links[1].1 {
+                    } else if junction == Junction::Roundabout {
+                        // Dashed ring line, then the kerbed island with a small tree.
+                        for k in 0..12 {
+                            let a0 = k as f32 / 12.0 * std::f32::consts::TAU;
+                            let a1 = a0 + 0.26;
+                            let (r0, r1) = (0.305, 0.335);
+                            let pt = |a: f32, r: f32| vec3(ctr.x + a.cos() * r, my, ctr.z + a.sin() * r);
+                            mb.flat(&[pt(a0, r0), pt(a1, r0), pt(a1, r1), pt(a0, r1)], MARKING);
+                        }
+                        mb.disk(vec3(ctr.x, my + 0.002, ctr.z), 0.22, 24, MARKING);
+                        mb.disk(vec3(ctr.x, my + 0.004, ctr.z), 0.185, 24, GRASS);
+                        mb.cone(vec3(ctr.x, my, ctr.z), 0.1, 0.22, 0.06, 6, 0.0, LEAF_B);
+                    } else if junction == Junction::Light {
+                        // A pole at one corner with two lamps showing which way is green.
+                        let pole = vec3(ctr.x + 0.36, 0.0, ctr.z - 0.36);
+                        mb.boxx(pole + Vec3::Y * 0.2, vec3(0.04, 0.4, 0.04), vec2(1.0, 0.0), Color::new(0.3, 0.3, 0.33, 1.0));
+                        let green_x = s.light_green((x, z), 0);
+                        let (on, off) = (Color::new(0.3, 0.85, 0.4, 1.0), Color::new(0.9, 0.3, 0.25, 1.0));
+                        mb.boxx(pole + vec3(-0.05, 0.42, 0.0), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { on } else { off });
+                        mb.boxx(pole + vec3(0.0, 0.42, 0.05), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { off } else { on });
+                        // Stop bars coloured by the light: green arms may go, red arms wait.
+                        for d in &links {
+                            let (dx, dz) = (d.0 as f32, d.1 as f32);
+                            let go = (d.1 == 0) == green_x;
+                            let c2 = vec3(ctr.x + dx * 0.34, my, ctr.z + dz * 0.34);
+                            let side = vec3(-dz, 0.0, dx) * 0.29;
+                            let along = vec3(dx, 0.0, dz) * 0.07;
+                            mb.flat(&[c2 + side + along, c2 - side + along, c2 - side, c2 + side], if go { on } else { off });
+                        }
+                        mb.disk(pole + vec3(0.0, 0.46, 0.0), 0.09, 12, Color::new(0.22, 0.22, 0.25, 1.0));
+                        mb.disk(pole + vec3(0.0, 0.47, 0.0), 0.055, 12, if green_x { on } else { off });
+                    } else if links.len() == 2 && links[0].0 == -links[1].0 && links[0].1 == -links[1].1 && !on_water {
                         let horizontal = links[0].1 == 0;
                         for off in [-0.22, 0.22] {
                             if horizontal {
@@ -550,6 +632,48 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                 }
             }
         }
+    }
+}
+
+/// Elevated highways with ramps, pillars and side barriers.
+fn draw_highways(mb: &mut Mb, s: &Sim) {
+    for h in &s.highways {
+        let a = vec2(h.a.0 as f32 + 0.5, h.a.1 as f32 + 0.5);
+        let b = vec2(h.b.0 as f32 + 0.5, h.b.1 as f32 + 0.5);
+        let len = (b - a).length();
+        let dir = (b - a) / len;
+        let side = vec2(-dir.y, dir.x);
+        let steps = (len * 4.0).ceil() as usize;
+        for k in 0..steps {
+            let d0 = len * k as f32 / steps as f32;
+            let d1 = len * (k + 1) as f32 / steps as f32;
+            let (p0, p1) = (a + dir * d0, a + dir * d1);
+            let (y0, y1) = (hwy_height(d0, len) + 0.02, hwy_height(d1, len) + 0.02);
+            let q = |p: Vec2, y: f32, sd: f32| vec3(p.x + side.x * sd, y, p.y + side.y * sd);
+            mb.flat(&[q(p0, y0, 0.36), q(p1, y1, 0.36), q(p1, y1, -0.36), q(p0, y0, -0.36)], Color::new(0.88, 0.87, 0.83, 1.0));
+            mb.flat(&[q(p0, y0 + 0.005, 0.3), q(p1, y1 + 0.005, 0.3), q(p1, y1 + 0.005, -0.3), q(p0, y0 + 0.005, -0.3)], darker(ASPHALT, 0.9));
+            if k % 2 == 0 {
+                mb.flat(&[q(p0, y0 + 0.01, 0.02), q(p1, y1 + 0.01, 0.02), q(p1, y1 + 0.01, -0.02), q(p0, y0 + 0.01, -0.02)], Color::new(1.0, 0.85, 0.35, 1.0));
+            }
+            if y0 > 0.2 {
+                // Side barriers and an underside
+                for sd in [0.36f32, -0.36] {
+                    mb.poly(&[q(p0, y0, sd), q(p1, y1, sd), q(p1, y1 + 0.08, sd), q(p0, y0 + 0.08, sd)], vec3((p0.x + p1.x) / 2.0, y0, (p0.y + p1.y) / 2.0), Color::new(0.93, 0.92, 0.89, 1.0));
+                    mb.poly(&[q(p0, y0 - 0.1, sd), q(p1, y1 - 0.1, sd), q(p1, y1, sd), q(p0, y0, sd)], vec3((p0.x + p1.x) / 2.0, y0, (p0.y + p1.y) / 2.0), Color::new(0.75, 0.74, 0.7, 1.0));
+                }
+            }
+        }
+        // Pillars
+        let mut d = RAMP + 0.4;
+        while d < len - RAMP {
+            let p = a + dir * d;
+            mb.boxx(vec3(p.x, HWY_Y / 2.0 - 0.15, p.y), vec3(0.14, HWY_Y + 0.3, 0.14), dir, Color::new(0.78, 0.77, 0.73, 1.0));
+            d += 1.6;
+        }
+        // Shadow
+        let o = vec2(0.3, -0.2);
+        let (sa, sb) = (a + dir * RAMP + o, b - dir * RAMP + o);
+        mb.flat(&[vec3(sa.x + side.x * 0.36, 0.015, sa.y + side.y * 0.36), vec3(sb.x + side.x * 0.36, 0.015, sb.y + side.y * 0.36), vec3(sb.x - side.x * 0.36, 0.015, sb.y - side.y * 0.36), vec3(sa.x - side.x * 0.36, 0.015, sa.y - side.y * 0.36)], SHADOW);
     }
 }
 
@@ -743,7 +867,14 @@ fn draw_cars(mb: &mut Mb, s: &Sim) {
         let (pos, dir) = car_pose(c);
         let normal = vec2(-dir.y, dir.x);
         let p = pos + normal * 0.15;
-        let base = vec3(p.x, 0.0, p.y);
+        let seg = (centre(c.cur) - centre(c.prev)).length();
+        let ground = if seg > 1.5 {
+            hwy_height(seg * c.progress, seg) + 0.03
+        } else {
+            let hp = |q: Pos| road_h(s, q) + if terrain_at(s, q.0, q.1) == Some(Terrain::Water) { 0.06 } else { 0.0 };
+            hp(c.prev) + (hp(c.cur) - hp(c.prev)) * c.progress
+        };
+        let base = vec3(p.x, ground, p.y);
         mb.flat(
             &[
                 base + vec3(-0.22, 0.017, -0.13) + vec3(0.06, 0.0, -0.04),
@@ -763,14 +894,18 @@ fn draw_cars(mb: &mut Mb, s: &Sim) {
 
 pub struct Highlight {
     pub tile: Option<Pos>,
-    pub erase: bool,
+    /// Colour of the hover marker.
+    pub tint: Color,
     pub flash: Option<(Pos, f32)>,
+    /// Highway being placed: its start tile and whether the hovered end is valid.
+    pub highway_from: Option<(Pos, bool)>,
 }
 
 pub fn draw_world(s: &Sim, time: f32, hl: &Highlight) {
     let mut mb = Mb::new();
     draw_terrain(&mut mb, s, time);
     draw_roads(&mut mb, s);
+    draw_highways(&mut mb, s);
     for d in &s.dests {
         draw_shop(&mut mb, d, PALETTE[d.color], drop_height(s.time - d.born));
     }
@@ -780,8 +915,21 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight) {
     draw_trees(&mut mb, s);
     draw_cars(&mut mb, s);
     if let Some(t) = hl.tile {
-        let c = if hl.erase { alpha(WARN, 0.35) } else { Color::new(1.0, 1.0, 1.0, 0.35) };
-        mb.rect_y(t.0 as f32 + 0.04, t.1 as f32 + 0.04, t.0 as f32 + 0.96, t.1 as f32 + 0.96, 0.03, c);
+        let y = road_h(s, t) + 0.03;
+        mb.rect_y(t.0 as f32 + 0.04, t.1 as f32 + 0.04, t.0 as f32 + 0.96, t.1 as f32 + 0.96, y, hl.tint);
+        if let Some((from, ok)) = hl.highway_from {
+            let a = vec2(from.0 as f32 + 0.5, from.1 as f32 + 0.5);
+            let b = vec2(t.0 as f32 + 0.5, t.1 as f32 + 0.5);
+            let len = (b - a).length();
+            if len > 0.1 {
+                let dir = (b - a) / len;
+                let side = vec2(-dir.y, dir.x) * 0.3;
+                let c = if ok { Color::new(1.0, 0.85, 0.35, 0.6) } else { alpha(WARN, 0.5) };
+                let q = |p: Vec2| vec3(p.x, HWY_Y, p.y);
+                mb.flat(&[q(a + side), q(b + side), q(b - side), q(a - side)], c);
+            }
+            mb.rect_y(from.0 as f32 + 0.04, from.1 as f32 + 0.04, from.0 as f32 + 0.96, from.1 as f32 + 0.96, 0.035, Color::new(1.0, 0.85, 0.35, 0.6));
+        }
     }
     if let Some((p, a)) = hl.flash {
         mb.rect_y(p.0 as f32, p.1 as f32, p.0 as f32 + 1.0, p.1 as f32 + 1.0, 0.035, alpha(WARN, a.min(0.6)));

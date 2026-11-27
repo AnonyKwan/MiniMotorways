@@ -59,4 +59,4 @@ You can also run it as a desktop window with `cargo run --release`.
 
 ## Look
 
-The world is rendered in 3D with a camera looking straight down. Every model (terrain, houses, shops, trees, cars) is a flat-shaded low-poly mesh generated in code, so the game ships no model or texture files. Text uses the bundled Inter font (SIL Open Font License, see `assets/Inter-LICENSE.txt`).
+The world is rendered in 3D with a gently tilted camera; on tall phone screens the board turns so its long side runs up the screen. Static scenery is built once and reused, and cars are blended between simulation steps, so play stays smooth. Every model (terrain, houses, shops, trees, cars) is a flat-shaded low-poly mesh generated in code, so the game ships no model or texture files. Text uses the bundled Inter font (SIL Open Font License, see `assets/Inter-LICENSE.txt`).

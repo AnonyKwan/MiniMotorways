@@ -75,25 +75,28 @@ impl Scene {
     /// and shifts by `pan` tiles.
     pub fn new(hud_h: f32, bottom: f32, zoom: f32, pan: Vec2) -> Scene {
         let (sw, sh) = (screen_width(), screen_height());
-        let fovy: f32 = 34f32.to_radians();
-        let pitch: f32 = 90f32.to_radians();
+        // A gentle tilt shows the sides of buildings; a narrow lens keeps the board close to
+        // its true shape. Tall phone screens turn the board so its long side runs up the screen.
+        let fovy: f32 = 24f32.to_radians();
+        let pitch: f32 = 58f32.to_radians();
+        let portrait = sh > sw * 1.05;
+        let back = if portrait { vec3(1.0, 0.0, 0.0) } else { vec3(0.0, 0.0, 1.0) };
         let margin = 10.0;
-        let corners = [
-            vec3(0.0, 0.0, 0.0),
-            vec3(W as f32, 0.0, 0.0),
-            vec3(0.0, BASE_Y, H as f32),
-            vec3(W as f32, BASE_Y, H as f32),
-        ];
+        let mut corners = Vec::new();
+        for y in [0.0, BASE_Y] {
+            for (x, z) in [(0.0, 0.0), (W as f32, 0.0), (0.0, H as f32), (W as f32, H as f32)] {
+                corners.push(vec3(x, y, z));
+            }
+        }
         let build = |target: Vec3, dist: f32| {
-            let position = target + vec3(0.0, pitch.sin(), pitch.cos().max(0.0)) * dist;
+            let position = target + (Vec3::Y * pitch.sin() + back * pitch.cos()) * dist;
             let cam = Camera3D {
                 position,
                 target,
-                // Looking straight down, so "up" on screen is the board's far (-z) edge.
-                up: vec3(0.0, 0.0, -1.0),
+                up: Vec3::Y,
                 fovy,
                 z_near: 1.0,
-                z_far: dist * 3.0,
+                z_far: dist * 4.0,
                 ..Default::default()
             };
             let vp = cam.matrix();
@@ -162,6 +165,17 @@ impl Scene {
         Some(vec2(p.x, p.z))
     }
 
+    /// Tile under a screen point, taking raised hill tiles into account.
+    pub fn pick_on(&self, s: &Sim, sx: f32, sy: f32) -> Option<Pos> {
+        if let Some(g) = self.ground_at(sx, sy, HILL_Y) {
+            let p = (g.x.floor() as i32, g.y.floor() as i32);
+            if terrain_at(s, p.0, p.1) == Some(Terrain::Hill) {
+                return Some(p);
+            }
+        }
+        self.pick(sx, sy)
+    }
+
     pub fn pick(&self, sx: f32, sy: f32) -> Option<Pos> {
         let g = self.ground_at(sx, sy, GROUND_Y)?;
         let p = (g.x.floor() as i32, g.y.floor() as i32);
@@ -190,11 +204,13 @@ fn shade(c: Color, n: Vec3) -> Color {
 pub struct Mb {
     verts: Vec<Vertex>,
     idx: Vec<u16>,
+    /// When set, finished meshes are kept here instead of drawn (for the static-world cache).
+    keep: Option<Vec<Mesh>>,
 }
 
 impl Mb {
     pub fn new() -> Self {
-        Mb { verts: Vec::with_capacity(9000), idx: Vec::with_capacity(4400) }
+        Mb { verts: Vec::with_capacity(9000), idx: Vec::with_capacity(4400), keep: None }
     }
 
     pub fn flush(&mut self) {
@@ -206,7 +222,10 @@ impl Mb {
             indices: std::mem::take(&mut self.idx),
             texture: None,
         };
-        draw_mesh(&mesh);
+        match &mut self.keep {
+            Some(k) => k.push(mesh),
+            None => draw_mesh(&mesh),
+        }
         self.verts.reserve(9000);
         self.idx.reserve(4400);
     }
@@ -408,7 +427,7 @@ fn terrain_at(s: &Sim, x: i32, z: i32) -> Option<Terrain> {
     (x >= 0 && z >= 0 && x < W && z < H).then(|| s.terrain[idx((x, z))])
 }
 
-fn draw_terrain(mb: &mut Mb, s: &Sim, time: f32) {
+fn draw_terrain(mb: &mut Mb, s: &Sim) {
     // Water surface over the whole board; land sits on top of it.
     mb.rect_y(0.0, 0.0, W as f32, H as f32, WATER_Y, WATER);
     // Board skirt
@@ -439,12 +458,6 @@ fn draw_terrain(mb: &mut Mb, s: &Sim, time: f32) {
                 if !near_land {
                     let t = noise(x as f32, z as f32, 3.0, 9) * 0.5;
                     mb.rect_y(x as f32, z as f32, x as f32 + 1.0, z as f32 + 1.0, WATER_Y + 0.001, alpha(WATER_DEEP, t * 0.6));
-                }
-                if hash(x, z, 3) < 0.35 {
-                    let ph = hash(x, z, 4) * 6.28;
-                    let ox = (time * 0.6 + ph).sin() * 0.1;
-                    let (px, pz) = (x as f32 + 0.25 + hash(x, z, 5) * 0.3 + ox, z as f32 + 0.3 + hash(x, z, 6) * 0.4);
-                    mb.rect_y(px, pz, px + 0.26, pz + 0.04, WATER_Y + 0.004, alpha(FOAM, 0.55));
                 }
                 continue;
             }
@@ -601,24 +614,7 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                         mb.disk(vec3(ctr.x, my + 0.004, ctr.z), 0.185, 24, GRASS);
                         mb.cone(vec3(ctr.x, my, ctr.z), 0.1, 0.22, 0.06, 6, 0.0, LEAF_B);
                     } else if junction == Junction::Light {
-                        // A pole at one corner with two lamps showing which way is green.
-                        let pole = vec3(ctr.x + 0.36, 0.0, ctr.z - 0.36);
-                        mb.boxx(pole + Vec3::Y * 0.2, vec3(0.04, 0.4, 0.04), vec2(1.0, 0.0), Color::new(0.3, 0.3, 0.33, 1.0));
-                        let green_x = s.light_green((x, z), 0);
-                        let (on, off) = (Color::new(0.3, 0.85, 0.4, 1.0), Color::new(0.9, 0.3, 0.25, 1.0));
-                        mb.boxx(pole + vec3(-0.05, 0.42, 0.0), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { on } else { off });
-                        mb.boxx(pole + vec3(0.0, 0.42, 0.05), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { off } else { on });
-                        // Stop bars coloured by the light: green arms may go, red arms wait.
-                        for d in &links {
-                            let (dx, dz) = (d.0 as f32, d.1 as f32);
-                            let go = (d.1 == 0) == green_x;
-                            let c2 = vec3(ctr.x + dx * 0.34, my, ctr.z + dz * 0.34);
-                            let side = vec3(-dz, 0.0, dx) * 0.29;
-                            let along = vec3(dx, 0.0, dz) * 0.07;
-                            mb.flat(&[c2 + side + along, c2 - side + along, c2 - side, c2 + side], if go { on } else { off });
-                        }
-                        mb.disk(pole + vec3(0.0, 0.46, 0.0), 0.09, 12, Color::new(0.22, 0.22, 0.25, 1.0));
-                        mb.disk(pole + vec3(0.0, 0.47, 0.0), 0.055, 12, if green_x { on } else { off });
+                        // Drawn every frame by draw_lights, because the colours change.
                     } else if links.len() == 2 && links[0].0 == -links[1].0 && links[0].1 == -links[1].1 && !on_water {
                         let horizontal = links[0].1 == 0;
                         for off in [-0.22, 0.22] {
@@ -631,6 +627,55 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Moving glints on open water.
+fn draw_water_glints(mb: &mut Mb, s: &Sim, time: f32) {
+    let land = |x: i32, z: i32| terrain_at(s, x, z).map_or(true, |t| t != Terrain::Water);
+    for z in 0..H {
+        for x in 0..W {
+            if land(x, z) || hash(x, z, 3) >= 0.35 {
+                continue;
+            }
+            let ph = hash(x, z, 4) * 6.28;
+            let ox = (time * 0.6 + ph).sin() * 0.1;
+            let (px, pz) = (x as f32 + 0.25 + hash(x, z, 5) * 0.3 + ox, z as f32 + 0.3 + hash(x, z, 6) * 0.4);
+            mb.rect_y(px, pz, px + 0.26, pz + 0.04, WATER_Y + 0.004, alpha(FOAM, 0.55));
+        }
+    }
+}
+
+/// Traffic lights: pole, lamp and stop bars coloured by the current phase.
+fn draw_lights(mb: &mut Mb, s: &Sim) {
+    for z in 0..H {
+        for x in 0..W {
+            if s.cells[idx((x, z))] != Cell::Road || s.junctions[idx((x, z))] != Junction::Light {
+                continue;
+            }
+            let cell = Cell::Road;
+            let hy = road_h(s, (x, z));
+            let ctr = vec3(x as f32 + 0.5, 0.012 + hy, z as f32 + 0.5);
+            let my = ctr.y + 0.004;
+            let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, cell, (x, z), (x + d.0, z + d.1))).collect();
+            let pole = vec3(ctr.x + 0.36, hy, ctr.z - 0.36);
+            mb.boxx(pole + Vec3::Y * 0.2, vec3(0.04, 0.4, 0.04), vec2(1.0, 0.0), Color::new(0.3, 0.3, 0.33, 1.0));
+            let green_x = s.light_green((x, z), 0);
+            let (on, off) = (Color::new(0.3, 0.85, 0.4, 1.0), Color::new(0.9, 0.3, 0.25, 1.0));
+            mb.boxx(pole + vec3(-0.05, 0.42, 0.0), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { on } else { off });
+            mb.boxx(pole + vec3(0.0, 0.42, 0.05), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { off } else { on });
+            // Stop bars: green arms may go, red arms wait.
+            for d in &links {
+                let (dx, dz) = (d.0 as f32, d.1 as f32);
+                let go = (d.1 == 0) == green_x;
+                let c2 = vec3(ctr.x + dx * 0.34, my, ctr.z + dz * 0.34);
+                let side = vec3(-dz, 0.0, dx) * 0.29;
+                let along = vec3(dx, 0.0, dz) * 0.07;
+                mb.flat(&[c2 + side + along, c2 - side + along, c2 - side, c2 + side], if go { on } else { off });
+            }
+            mb.disk(pole + vec3(0.0, 0.46, 0.0), 0.09, 12, Color::new(0.22, 0.22, 0.25, 1.0));
+            mb.disk(pole + vec3(0.0, 0.47, 0.0), 0.055, 12, if green_x { on } else { off });
         }
     }
 }
@@ -858,13 +903,13 @@ pub fn car_pose(c: &Car) -> (Vec2, Vec2) {
     (a + (b - a) * t, dir)
 }
 
-fn draw_cars(mb: &mut Mb, s: &Sim) {
+fn draw_cars(mb: &mut Mb, s: &Sim, poses: &[Option<(Vec2, Vec2)>]) {
     for (i, c) in s.cars.iter().enumerate() {
         if c.state == CarState::Idle {
             continue;
         }
         let col = PALETTE[s.homes[i].color];
-        let (pos, dir) = car_pose(c);
+        let (pos, dir) = poses.get(i).copied().flatten().unwrap_or_else(|| car_pose(c));
         let normal = vec2(-dir.y, dir.x);
         let p = pos + normal * 0.15;
         let seg = (centre(c.cur) - centre(c.prev)).length();
@@ -901,19 +946,82 @@ pub struct Highlight {
     pub highway_from: Option<(Pos, bool)>,
 }
 
-pub fn draw_world(s: &Sim, time: f32, hl: &Highlight) {
-    let mut mb = Mb::new();
-    draw_terrain(&mut mb, s, time);
-    draw_roads(&mut mb, s);
-    draw_highways(&mut mb, s);
+/// The parts of the world that only change when the player builds or something spawns.
+/// Rebuilding every mesh each frame was the main cost on phones, so they are kept between frames.
+#[derive(Default)]
+pub struct WorldCache {
+    key: u64,
+    meshes: Vec<Mesh>,
+}
+
+fn settled(s: &Sim, born: f32) -> bool {
+    s.time - born >= 0.6
+}
+
+fn world_key(s: &Sim) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for t in &s.terrain {
+        (*t as u8).hash(&mut h);
+    }
+    for c in &s.cells {
+        match c {
+            Cell::Empty => 0u64,
+            Cell::Road => 1,
+            Cell::Home(i) => 2 + 8 * *i as u64,
+            Cell::Dest(i) => 3 + 8 * *i as u64,
+            Cell::Door(i) => 4 + 8 * *i as u64,
+        }
+        .hash(&mut h);
+    }
+    for j in &s.junctions {
+        (*j as u8).hash(&mut h);
+    }
+    for hw in &s.highways {
+        (hw.a, hw.b).hash(&mut h);
+    }
+    for home in &s.homes {
+        (home.pos, home.facing, home.color, settled(s, home.born)).hash(&mut h);
+    }
     for d in &s.dests {
+        (d.origin, d.color, settled(s, d.born)).hash(&mut h);
+    }
+    h.finish()
+}
+
+pub fn draw_world(s: &Sim, time: f32, hl: &Highlight, cache: &mut WorldCache, car_poses: &[Option<(Vec2, Vec2)>]) {
+    let key = world_key(s);
+    if key != cache.key || cache.meshes.is_empty() {
+        let mut mb = Mb::new();
+        mb.keep = Some(Vec::new());
+        draw_terrain(&mut mb, s);
+        draw_roads(&mut mb, s);
+        draw_highways(&mut mb, s);
+        for d in s.dests.iter().filter(|d| settled(s, d.born)) {
+            draw_shop(&mut mb, d, PALETTE[d.color], 0.0);
+        }
+        for h in s.homes.iter().filter(|h| settled(s, h.born)) {
+            draw_home(&mut mb, h.pos, h.facing, PALETTE[h.color], 0.0);
+        }
+        draw_trees(&mut mb, s);
+        mb.flush();
+        cache.meshes = mb.keep.take().unwrap_or_default();
+        cache.key = key;
+    }
+    for m in &cache.meshes {
+        draw_mesh(m);
+    }
+
+    let mut mb = Mb::new();
+    draw_water_glints(&mut mb, s, time);
+    draw_lights(&mut mb, s);
+    for d in s.dests.iter().filter(|d| !settled(s, d.born)) {
         draw_shop(&mut mb, d, PALETTE[d.color], drop_height(s.time - d.born));
     }
-    for h in &s.homes {
+    for h in s.homes.iter().filter(|h| !settled(s, h.born)) {
         draw_home(&mut mb, h.pos, h.facing, PALETTE[h.color], drop_height(s.time - h.born));
     }
-    draw_trees(&mut mb, s);
-    draw_cars(&mut mb, s);
+    draw_cars(&mut mb, s, car_poses);
     if let Some(t) = hl.tile {
         let y = road_h(s, t) + 0.03;
         mb.rect_y(t.0 as f32 + 0.04, t.1 as f32 + 0.04, t.0 as f32 + 0.96, t.1 as f32 + 0.96, y, hl.tint);

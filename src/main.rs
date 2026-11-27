@@ -122,6 +122,12 @@ fn rrect(x: f32, y: f32, w: f32, h: f32, r: f32, c: Color) {
     }
 }
 
+/// A pill with a soft drop shadow, for controls that float over the map.
+fn float_pill(x: f32, y: f32, w: f32, h: f32, c: Color) {
+    pill(x + 1.0, y + 3.0, w, h, Color::new(0.0, 0.0, 0.0, 0.10));
+    pill(x, y, w, h, c);
+}
+
 fn pill(x: f32, y: f32, w: f32, h: f32, c: Color) {
     rrect(x, y, w, h, h / 2.0, c);
 }
@@ -304,6 +310,10 @@ struct Game {
     touch_lock: bool,
     new_best: bool,
     trip_cooldown: f32,
+    /// Car poses before the latest simulation step, so drawing can blend between steps.
+    prev_poses: Vec<Option<(Vec2, Vec2)>>,
+    world_cache: render3d::WorldCache,
+    title_cache: render3d::WorldCache,
 }
 
 fn seed() -> u64 {
@@ -337,6 +347,9 @@ impl Game {
             touch_lock: false,
             new_best: false,
             trip_cooldown: 0.0,
+            prev_poses: Vec::new(),
+            world_cache: Default::default(),
+            title_cache: Default::default(),
         }
     }
 
@@ -706,15 +719,16 @@ async fn main() {
             Screen::Title => {
                 let scene = render3d::Scene::new(0.0, 0.0, 1.0, Vec2::ZERO);
                 set_camera(&scene.cam);
-                render3d::draw_world(&g.title_sim, time, &render3d::Highlight { tile: None, tint: WHITE, flash: None, highway_from: None });
+                render3d::draw_world(&g.title_sim, time, &render3d::Highlight { tile: None, tint: WHITE, flash: None, highway_from: None }, &mut g.title_cache, &[]);
                 set_camera(&ui_camera());
                 draw_title(&g, &btns, m);
             }
             Screen::Play => {
                 let scene = g.scene();
                 let over_ui = m.y < HUD_H || bar_rect().contains(m) || g.sim.offer.is_some() || g.sim.game_over;
-                let hover = if over_ui { None } else { scene.pick(mp.x, mp.y) };
+                let hover = if over_ui { None } else { scene.pick_on(&g.sim, mp.x, mp.y) };
                 let tint = hover_tint(&g, hover);
+                let poses = smooth_poses(&g);
                 set_camera(&scene.cam);
                 render3d::draw_world(
                     &g.sim,
@@ -725,6 +739,8 @@ async fn main() {
                         flash: g.flash,
                         highway_from: g.highway_from.map(|f| (f, hover.is_some_and(|h| g.sim.highway_ok(f, h)))),
                     },
+                    &mut g.world_cache,
+                    &poses,
                 );
                 set_default_camera();
                 render3d::draw_overlays(&g.sim, &scene, time);
@@ -840,7 +856,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     let pressed_r = is_mouse_button_pressed(MouseButton::Right) && !over_ui;
     let down_l = is_mouse_button_down(MouseButton::Left);
     let down_r = is_mouse_button_down(MouseButton::Right);
-    let tile = scene.pick(mp.x, mp.y);
+    let tile = scene.pick_on(&g.sim, mp.x, mp.y);
 
     // Right click cancels a half-built highway before anything else.
     if pressed_r && g.highway_from.is_some() {
@@ -943,11 +959,33 @@ fn tool_click(g: &mut Game, t: Pos) {
     }
 }
 
+fn car_poses(s: &Sim) -> Vec<Option<(Vec2, Vec2)>> {
+    s.cars.iter().map(|c| (c.state != little_lanes::sim::CarState::Idle).then(|| render3d::car_pose(c))).collect()
+}
+
+/// Car poses blended between the last two simulation steps, so cars glide at any frame rate.
+fn smooth_poses(g: &Game) -> Vec<Option<(Vec2, Vec2)>> {
+    let t = if g.speed == 0 || g.sim.offer.is_some() || g.sim.game_over { 1.0 } else { (g.acc / DT).clamp(0.0, 1.0) };
+    car_poses(&g.sim)
+        .into_iter()
+        .enumerate()
+        .map(|(i, cur)| match (g.prev_poses.get(i).copied().flatten(), cur) {
+            // Only blend short moves; a jump means the car turned around or was re-routed.
+            (Some((p0, d0)), Some((p1, d1))) if (p1 - p0).length() < 0.5 => {
+                let d = d0.lerp(d1, t).normalize_or(d1);
+                Some((p0.lerp(p1, t), d))
+            }
+            (_, cur) => cur,
+        })
+        .collect()
+}
+
 fn step_sim(g: &mut Game) {
     let dt = get_frame_time().min(0.1);
     g.acc += dt * g.speed as f32;
     let mut steps = 0;
     while g.acc >= DT && steps < 16 {
+        g.prev_poses = car_poses(&g.sim);
         g.sim.step();
         g.acc -= DT;
         steps += 1;
@@ -994,12 +1032,12 @@ fn draw_top_button(b: &Btn, active: bool, hovered: bool) {
     let fill = if active {
         INK
     } else if hovered {
-        Color::new(0.0, 0.0, 0.0, 0.12)
+        Color::new(0.93, 0.92, 0.88, 1.0)
     } else {
-        CHIP
+        PAPER
     };
     let ink = if active { WHITE } else { INK };
-    pill(r.x, r.y, r.w, r.h, fill);
+    float_pill(r.x, r.y, r.w, r.h, fill);
     let c = r.center();
     match b.action {
         Action::Speed(0) => {
@@ -1036,14 +1074,13 @@ fn draw_top_button(b: &Btn, active: bool, hovered: bool) {
 fn draw_hud(g: &Game, btns: &[Btn]) {
     let s = &g.sim;
     let sw = uw();
-    draw_rectangle(0.0, 0.0, sw, HUD_H, PAPER);
-    draw_rectangle(0.0, HUD_H - 3.0, sw, 3.0, Color::new(0.0, 0.0, 0.0, 0.08));
+    // No solid bar: the counters float over the sky as small cards.
 
     let mut x = 12.0;
     // Trips: a little car icon
     let label = format!("{}", s.score);
     let w = 54.0 + measure(&label, 24.0).width;
-    pill(x, 8.0, w, 30.0, CHIP);
+    float_pill(x, 8.0, w, 30.0, PAPER);
     rrect(x + 10.0, 16.0, 26.0, 14.0, 5.0, PALETTE[0]);
     rrect(x + 18.0, 18.0, 10.0, 10.0, 2.0, Color::new(1.0, 1.0, 1.0, 0.7));
     text(&label, x + 44.0, 31.0, 24.0, INK);
@@ -1051,7 +1088,7 @@ fn draw_hud(g: &Game, btns: &[Btn]) {
     // Week with progress ring
     let label = if narrow() { format!("{}", s.week) } else { format!("Week {}", s.week) };
     let w = 50.0 + measure(&label, 24.0).width;
-    pill(x, 8.0, w, 30.0, CHIP);
+    float_pill(x, 8.0, w, 30.0, PAPER);
     draw_circle_lines(x + 22.0, 23.0, 9.0, 3.0, Color::new(0.0, 0.0, 0.0, 0.12));
     draw_arc(x + 22.0, 23.0, 32, 7.5, -90.0, 3.0, 360.0 * s.week_progress(), INK);
     text(&label, x + 40.0, 31.0, 24.0, INK);
@@ -1064,7 +1101,7 @@ fn draw_hud(g: &Game, btns: &[Btn]) {
             }
             let label = format!("{}", n);
             let w = 50.0 + measure(&label, 24.0).width;
-            pill(x, 8.0, w, 30.0, CHIP);
+            float_pill(x, 8.0, w, 30.0, PAPER);
             draw_icon(icon, x + 22.0, 23.0, 0.62, false);
             text(&label, x + 40.0, 31.0, 24.0, INK);
             x += w + 10.0;

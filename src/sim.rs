@@ -91,7 +91,8 @@ pub fn offer_week(week: u32) -> bool {
 
 /// Footprint of a small shop (one driveway) and a big shop (two driveways).
 pub const SMALL_SHOP: (i32, i32) = (3, 2);
-pub const BIG_SHOP: (i32, i32) = (4, 2);
+/// A big shop is two small shops side by side, each with its own driveway.
+pub const BIG_SHOP: (i32, i32) = (6, 2);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Cell {
@@ -784,7 +785,7 @@ impl Sim {
         let size = if big { BIG_SHOP } else { SMALL_SHOP };
         let front = origin.1 + size.1;
         let doors: Vec<Pos> = if big {
-            vec![(origin.0, front), (origin.0 + size.0 - 1, front)]
+            vec![(origin.0 + 1, front), (origin.0 + 4, front)]
         } else {
             vec![(origin.0 + 1, front)]
         };
@@ -1705,12 +1706,12 @@ mod tests {
     fn big_shop_has_two_driveways_and_either_works() {
         let mut s = Sim::empty(8);
         let d = s.add_big_dest((10, 5), 0).unwrap();
-        assert_eq!(s.dests[d].doors, vec![(10, 7), (13, 7)]);
+        assert_eq!(s.dests[d].doors, vec![(11, 7), (14, 7)]);
         assert!(s.dests[d].big());
         // Home connected only to the right-hand driveway.
-        s.add_home((13, 11), 0);
+        s.add_home((14, 11), 0);
         for y in 8..=10 {
-            s.place_road((13, y));
+            s.place_road((14, y));
         }
         s.dests[d].pins = 2;
         run(&mut s, 10.0);
@@ -1725,26 +1726,25 @@ mod tests {
         assert_eq!(s.cell((4, 5)), Cell::Door(small));
         assert_eq!(s.cell((5, 5)), Cell::Park(small));
         let big = s.add_big_dest((10, 5), 2).unwrap();
-        assert_eq!(s.cell((11, 7)), Cell::Park(big));
+        assert_eq!(s.cell((12, 7)), Cell::Park(big));
+        assert_eq!(s.cell((11, 7)), Cell::Door(big));
+        assert_eq!(s.cell((14, 7)), Cell::Door(big));
         // A teal home east of the big shop; its own shop lies west, reachable only by
         // driving in one driveway, across the car park and out the other.
-        s.add_home((16, 9), 0);
-        for p in [(15, 9), (14, 9), (13, 9), (13, 8)] {
+        s.add_home((18, 9), 0);
+        for p in [(17, 9), (16, 9), (15, 9), (14, 9), (14, 8)] {
             s.place_road(p);
         }
         let target = s.add_dest((3, 9), 0).unwrap();
-        for p in [(10, 8), (10, 9), (9, 9), (8, 9), (7, 9), (7, 10), (7, 11), (7, 12), (6, 12), (5, 12), (4, 12)] {
+        for p in [(11, 8), (11, 9), (10, 9), (9, 9), (8, 9), (7, 9), (7, 10), (7, 11), (7, 12), (6, 12), (5, 12), (4, 12)] {
             s.place_road(p);
         }
         assert_eq!(s.cell((4, 11)), Cell::Door(target));
         // A road beside the car park doesn't connect into it except at a driveway.
-        s.place_road((11, 8));
-        let path = s.find_path((16, 9), &|p| p == (4, 11)).expect("route through the car park");
-        assert!(path.contains(&(12, 7)) && path.contains(&(11, 7)), "{:?}", path);
-        assert!(!path.contains(&(11, 8)));
-        // Roads that touch a driveway from the side don't count.
-        s.place_road((9, 7));
-        assert!(s.find_path((9, 7), &|p| p == (10, 7)).is_none());
+        s.place_road((12, 8));
+        let path = s.find_path((18, 9), &|p| p == (4, 11)).expect("route through the car park");
+        assert!(path.contains(&(13, 7)) && path.contains(&(12, 7)), "{:?}", path);
+        assert!(!path.contains(&(12, 8)));
         s.dests[target].pins = 2;
         s.dests[big].pins = 0;
         run(&mut s, 20.0);

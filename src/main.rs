@@ -766,6 +766,17 @@ async fn main() {
             inv.highways += 2;
             g.sim.roads_left += 100;
         }
+        // Test builds: F6 drops a big shop near the first one, to check how it looks.
+        if option_env!("LL_SEED").is_some() && is_key_pressed(KeyCode::F6) && !g.sim.dests.is_empty() {
+            let o = g.sim.dests[0].origin;
+            'find: for r in 4..12 {
+                for (dx, dy) in [(r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, r)] {
+                    if g.sim.add_big_dest((o.0 + dx, o.1 + dy), 1).is_some() {
+                        break 'find;
+                    }
+                }
+            }
+        }
         // Test builds: F7 ends the game so the game-over card can be checked.
         if option_env!("LL_SEED").is_some() && is_key_pressed(KeyCode::F7) && g.screen == Screen::Play {
             g.sim.game_over = true;

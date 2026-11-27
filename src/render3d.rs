@@ -990,7 +990,7 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     let (x0, z0) = (o.0 as f32 + 0.1, o.1 as f32 + 0.08);
     let (x1, z1) = (o.0 as f32 + d.size.0 as f32 - 0.1, o.1 as f32 + d.size.1 as f32 - 0.22);
     let y = lift;
-    let h = if d.big() { 0.95 } else { 0.72 };
+    let h = 0.72;
     if lift == 0.0 {
         shadow_rect(mb, x0, z0, x1, z1, h + 0.3);
     }
@@ -1051,6 +1051,21 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
             }
         }
     }
+    // A big shop is two small shops side by side, one per driveway, sharing a car park.
+    for door in &d.doors {
+        let (ux0, ux1) = if d.big() {
+            let left = (door.0 - 1) as f32;
+            (left + 0.1, left + 2.9)
+        } else {
+            (x0, x1)
+        };
+        draw_shop_unit(mb, ux0, ux1, z0, z1, y, h, door.0 as f32 + 0.5, col, grey);
+    }
+}
+
+/// One shop building between `x0` and `x1`, its entrance at `dx` facing the driveway.
+#[allow(clippy::too_many_arguments)]
+fn draw_shop_unit(mb: &mut Mb, x0: f32, x1: f32, z0: f32, z1: f32, y: f32, h: f32, dx: f32, col: Color, grey: Color) {
     // Body and flat roof with a parapet
     mb.abox(vec3(x0, y, z0), vec3(x1, y + h, z1), lighter(col, 0.55));
     mb.abox(vec3(x0 - 0.04, y + h, z0 - 0.04), vec3(x1 + 0.04, y + h + 0.08, z1 + 0.04), darker(col, 0.8));
@@ -1059,22 +1074,15 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     mb.abox(vec3(x0 + 0.25, y + h + 0.08, z0 + 0.2), vec3(x0 + 0.7, y + h + 0.3, z0 + 0.55), grey);
     mb.abox(vec3(x0 + 0.3, y + h + 0.3, z0 + 0.25), vec3(x0 + 0.65, y + h + 0.32, z0 + 0.5), darker(grey, 0.85));
     mb.cone(vec3(x1 - 0.45, y + h + 0.08, z0 + 0.42), 0.17, 0.14, 0.0, 10, 0.0, grey);
-    if d.big() {
-        // A skylight strip across the larger roof
-        mb.abox(vec3(x0 + 1.0, y + h + 0.08, z0 + 0.3), vec3(x1 - 1.0, y + h + 0.18, z0 + 0.6), WINDOW);
-    }
     // Sign along the roof's front edge
     let mid = (x0 + x1) / 2.0;
     mb.abox(vec3(mid - 0.55, y + h + 0.08, z1 - 0.14), vec3(mid + 0.55, y + h + 0.4, z1 - 0.05), col);
     mb.abox(vec3(mid - 0.45, y + h + 0.16, z1 - 0.045), vec3(mid + 0.45, y + h + 0.32, z1 - 0.035), WHITE);
-    // Shop front: windows, an entrance per driveway, striped awning
+    // Shop front: windows, the entrance, striped awning
     let f = z1 + 0.005;
     mb.poly_n(&[vec3(x0 + 0.12, y + 0.1, f), vec3(x1 - 0.12, y + 0.1, f), vec3(x1 - 0.12, y + 0.45, f), vec3(x0 + 0.12, y + 0.45, f)], Vec3::Z, WINDOW);
-    for door in &d.doors {
-        let dx = door.0 as f32 + 0.5;
-        mb.poly_n(&[vec3(dx - 0.16, y, f + 0.001), vec3(dx + 0.16, y, f + 0.001), vec3(dx + 0.16, y + 0.42, f + 0.001), vec3(dx - 0.16, y + 0.42, f + 0.001)], Vec3::Z, darker(col, 0.5));
-    }
-    let stripes = (d.size.0 * 4) as usize;
+    mb.poly_n(&[vec3(dx - 0.16, y, f + 0.001), vec3(dx + 0.16, y, f + 0.001), vec3(dx + 0.16, y + 0.42, f + 0.001), vec3(dx - 0.16, y + 0.42, f + 0.001)], Vec3::Z, darker(col, 0.5));
+    let stripes = ((x1 - x0) * 4.0).round().max(1.0) as usize;
     let (ay0, ay1, out) = (y + 0.62, y + 0.5, 0.24);
     for k in 0..stripes {
         let a = x0 + (x1 - x0) * k as f32 / stripes as f32;

@@ -228,9 +228,9 @@ impl Upgrade {
         match self {
             Upgrade::Bridge => "Roads across 4 more water tiles",
             Upgrade::Tunnel => "Roads through 4 more hill tiles",
-            Upgrade::Roundabout => "Two junctions where cars never wait for each other",
-            Upgrade::TrafficLight => "Three lights. Two straight-through directions go at once",
-            Upgrade::Highway => "A fast link between two points, over anything",
+            Upgrade::Roundabout => "Two junctions where traffic keeps flowing",
+            Upgrade::TrafficLight => "Three lights; facing roads go together",
+            Upgrade::Highway => "A fast link over anything",
             Upgrade::ExtraRoads => "A big stack of road tiles",
         }
     }

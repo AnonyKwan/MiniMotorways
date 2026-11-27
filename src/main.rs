@@ -779,6 +779,10 @@ async fn main() {
                 }
             }
         }
+        // Test builds: F5 shows an upgrade offer with the longest card texts.
+        if option_env!("LL_SEED").is_some() && is_key_pressed(KeyCode::F5) {
+            g.sim.offer = Some([Upgrade::Roundabout, Upgrade::TrafficLight]);
+        }
         // Test builds: F7 ends the game so the game-over card can be checked.
         if option_env!("LL_SEED").is_some() && is_key_pressed(KeyCode::F7) && g.screen == Screen::Play {
             g.sim.game_over = true;

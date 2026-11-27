@@ -10,14 +10,84 @@ pub const DT: f32 = 1.0 / 60.0;
 pub const CAR_SPEED: f32 = 2.6;
 /// Seconds a car spends at a destination before heading home.
 pub const UNLOAD_TIME: f32 = 0.6;
-/// Pins a destination can hold before its overflow timer starts.
-pub const PIN_LIMIT: u32 = 4;
+/// Pins a small shop can hold before its overflow timer starts (big shops hold half again).
+pub const PIN_LIMIT: u32 = 6;
 /// Seconds of continuous overflow before the game ends.
-pub const OVERFLOW_TIME: f32 = 40.0;
-pub const WEEK_LENGTH: f32 = 60.0;
-pub const START_ROADS: u32 = 30;
-pub const ROADS_PER_WEEK: u32 = 15;
+pub const OVERFLOW_TIME: f32 = 45.0;
+pub const WEEK_LENGTH: f32 = 90.0;
+pub const START_ROADS: u32 = 36;
+pub const ROADS_PER_WEEK: u32 = 16;
 pub const MAX_COLORS: usize = 6;
+
+// ----- Difficulty curve ---------------------------------------------------------------
+// Pressure climbs for the first eleven weeks, then levels off. After that, variety comes
+// from new colours, scheduled shops and rush waves rather than an ever faster baseline.
+
+/// Average seconds between pins at a small shop (big shops are 1.6x busier).
+pub fn pin_interval(week: u32) -> f32 {
+    match week {
+        0..=15 => (11.0 - 0.7 * (week.max(1) - 1) as f32).max(4.0),
+        16..=23 => 3.5,
+        _ => 3.0,
+    }
+}
+
+/// Multiplier on how fast new homes arrive. Capped at week 11.
+pub fn pace(week: u32) -> f32 {
+    (1.0 + 0.1 * (week.max(1) - 1) as f32).min(2.0)
+}
+
+/// Colours in play during a week.
+pub fn colors_for_week(week: u32) -> usize {
+    match week {
+        0..=2 => 2,
+        3..=4 => 3,
+        5..=7 => 4,
+        8..=11 => 5,
+        _ => 6,
+    }
+    .min(MAX_COLORS)
+}
+
+/// How many shops the town should have by the end of a week.
+pub fn target_dests(week: u32) -> usize {
+    let w = week.max(1) as usize;
+    match w {
+        0..=12 => w,
+        13..=16 => w.min(15),
+        17..=24 => 15 + (w - 16) * 3 / 8,
+        _ => (18 + (w - 24) / 2).min(20),
+    }
+}
+
+/// Chance that a new shop is a big one.
+pub fn big_shop_chance(week: u32) -> f32 {
+    match week {
+        0..=3 => 0.0,
+        4..=6 => 0.2,
+        7..=11 => 0.3,
+        _ => 0.4,
+    }
+}
+
+/// Rush waves start in week 9 and come every four weeks.
+pub fn rush_week(week: u32) -> bool {
+    week >= 9 && (week - 9) % 4 == 0
+}
+/// When a rush is announced, and how long it lasts, in seconds into its week.
+pub const RUSH_WARN_AT: f32 = 30.0;
+pub const RUSH_LEAD: f32 = 10.0;
+pub const RUSH_LENGTH: f32 = 20.0;
+/// Pin interval multiplier for the rushing colour.
+pub const RUSH_FACTOR: f32 = 0.6;
+
+/// Names for the destination colours, in palette order.
+pub const COLOR_NAMES: [&str; MAX_COLORS] = ["coral", "teal", "yellow", "violet", "blue", "pink"];
+
+/// Upgrade offers come every week until week 12, then every other week.
+pub fn offer_week(week: u32) -> bool {
+    week <= 12 || (week - 13) % 2 == 0
+}
 
 /// Footprint of a small shop (one driveway) and a big shop (two driveways).
 pub const SMALL_SHOP: (i32, i32) = (3, 2);
@@ -30,6 +100,9 @@ pub enum Cell {
     Home(usize),
     Dest(usize),
     Door(usize),
+    /// Car park in front of a shop, between or beside its driveways. On a big shop cars can
+    /// drive through it from one driveway to the other.
+    Park(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -81,7 +154,7 @@ impl Dest {
     /// Pins a destination can hold before its overflow timer starts.
     pub fn pin_limit(&self) -> u32 {
         if self.big() {
-            PIN_LIMIT + 2
+            PIN_LIMIT * 3 / 2
         } else {
             PIN_LIMIT
         }
@@ -112,13 +185,48 @@ impl Upgrade {
     }
     pub fn blurb(self) -> &'static str {
         match self {
-            Upgrade::Bridge => "Build roads across 4 water tiles",
-            Upgrade::Tunnel => "Build roads through 4 hill tiles",
-            Upgrade::Roundabout => "Junction where cars never wait for each other",
-            Upgrade::TrafficLight => "Lets two straight-through directions go at once",
-            Upgrade::Highway => "Fast link between two points, over anything",
-            Upgrade::ExtraRoads => "+20 road tiles",
+            Upgrade::Bridge => "Roads across 4 more water tiles",
+            Upgrade::Tunnel => "Roads through 4 more hill tiles",
+            Upgrade::Roundabout => "Two junctions where cars never wait for each other",
+            Upgrade::TrafficLight => "Three lights. Two straight-through directions go at once",
+            Upgrade::Highway => "A fast link between two points, over anything",
+            Upgrade::ExtraRoads => "A big stack of road tiles",
         }
+    }
+    /// Road tiles that come with the card. Better tools bring fewer.
+    pub fn bonus_roads(self) -> u32 {
+        match self {
+            Upgrade::ExtraRoads => 30,
+            Upgrade::Roundabout | Upgrade::TrafficLight => 14,
+            Upgrade::Bridge | Upgrade::Tunnel => 10,
+            Upgrade::Highway => 6,
+        }
+    }
+    fn weight(self) -> u32 {
+        if self == Upgrade::ExtraRoads { 3 } else { 2 }
+    }
+    /// First week (the week that is starting) in which the card can be offered.
+    fn unlock_week(self) -> u32 {
+        match self {
+            Upgrade::Highway => 3,
+            _ => 2,
+        }
+    }
+}
+
+/// A short burst of demand for one colour.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rush {
+    pub color: usize,
+    /// Sim times when the rush starts and ends (it is announced before `start`).
+    pub start: f32,
+    pub end: f32,
+    announced: bool,
+}
+
+impl Rush {
+    pub fn active(&self, time: f32) -> bool {
+        time >= self.start && time < self.end
     }
 }
 
@@ -159,11 +267,15 @@ impl Highway {
 
 pub const BRIDGE_TILES: u32 = 4;
 pub const TUNNEL_TILES: u32 = 4;
-pub const EXTRA_ROADS: u32 = 20;
 pub const HIGHWAY_MAX_LEN: i32 = 14;
 pub const HIGHWAY_SPEED: f32 = 2.2;
 /// Seconds each traffic light phase lasts.
 pub const LIGHT_PHASE: f32 = 3.0;
+/// All-red gap between phases, so the crossing clears before the other way goes.
+pub const LIGHT_CLEAR: f32 = 0.6;
+/// A car stuck this long at a plain crossing goes anyway, so loops of crossings can't
+/// lock up for good. Plain crossings stay slow; they just can't freeze the town.
+pub const JAM_BREAK: f32 = 4.0;
 
 /// Things that happened during a step, for sounds and effects.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -174,6 +286,8 @@ pub enum Event {
     /// A destination just started overflowing.
     Warning,
     WeekEnd,
+    /// A rush wave has been announced.
+    RushSoon,
     GameOver,
 }
 
@@ -200,6 +314,8 @@ pub struct Car {
     pub slot: Option<usize>,
     /// Retry countdown when the car has no route.
     pub retry: f32,
+    /// Seconds spent waiting to enter a plain crossing.
+    pub wait: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -239,6 +355,12 @@ pub struct Sim {
     pub failed_dest: Option<usize>,
     /// Short message to show the player and how long it has left.
     pub toast: Option<(String, f32)>,
+    /// The current or next rush wave, if one is scheduled this week.
+    pub rush: Option<Rush>,
+    /// Last upgrade picked, so the next offer doesn't repeat it.
+    last_pick: Option<Upgrade>,
+    /// Offers since a highway was last on the table.
+    since_highway: u32,
     rng: Rng,
     home_timer: f32,
     dest_timer: f32,
@@ -278,9 +400,12 @@ impl Sim {
             game_over: false,
             failed_dest: None,
             toast: Some(("Draw roads from homes to matching destinations".into(), 6.0)),
+            rush: None,
+            last_pick: None,
+            since_highway: 0,
             rng: Rng::new(seed ^ 0xA5A5),
             home_timer: 12.0,
-            dest_timer: 35.0,
+            dest_timer: 0.0,
             dispatch_timer: 0.0,
             roads_dirty: false,
         };
@@ -316,10 +441,39 @@ impl Sim {
     }
 
     pub fn colors_available(&self) -> usize {
-        (3 + (self.week as usize - 1) / 3).min(MAX_COLORS)
+        colors_for_week(self.week)
     }
 
     // ----- Player edits -------------------------------------------------
+
+    /// What `place_road` would do at `p`, without doing it (for the placement preview).
+    pub fn road_check(&self, p: Pos) -> EditResult {
+        if !in_bounds(p) || self.game_over {
+            return EditResult::Blocked;
+        }
+        match self.cells[idx(p)] {
+            Cell::Road => return EditResult::NoChange,
+            Cell::Empty => {}
+            _ => return EditResult::Blocked,
+        }
+        match self.terrain[idx(p)] {
+            Terrain::Grass if self.roads_left == 0 => EditResult::NoRoadsLeft,
+            Terrain::Water if self.inventory.bridge_tiles == 0 => EditResult::NeedBridge,
+            Terrain::Hill if self.inventory.tunnel_tiles == 0 => EditResult::NeedTunnel,
+            _ => EditResult::Ok,
+        }
+    }
+
+    /// Whether a junction of `kind` could go on `p` (ignoring whether the player has one).
+    pub fn junction_fits(&self, p: Pos, kind: Junction) -> bool {
+        if !in_bounds(p) || self.cells[idx(p)] != Cell::Road {
+            return false;
+        }
+        kind != Junction::Roundabout
+            || ![(-1, -1), (1, -1), (-1, 1), (1, 1)]
+                .iter()
+                .any(|d| matches!(self.cell((p.0 + d.0, p.1 + d.1)), Cell::Home(_) | Cell::Dest(_) | Cell::Door(_) | Cell::Park(_)))
+    }
 
     pub fn place_road(&mut self, p: Pos) -> EditResult {
         if !in_bounds(p) || self.game_over {
@@ -395,7 +549,9 @@ impl Sim {
                 let q = (p.0 + d.0, p.1 + d.1);
                 in_bounds(q)
                     && match self.cells[idx(q)] {
-                        Cell::Road | Cell::Door(_) => true,
+                        Cell::Road => true,
+                        // A shop driveway counts only for the tile straight in front of it.
+                        Cell::Door(_) => q == (p.0, p.1 - 1),
                         Cell::Home(h) => self.driveway(h) == p,
                         _ => false,
                     }
@@ -409,9 +565,23 @@ impl Sim {
         in_bounds(p) && self.cells[idx(p)] == Cell::Road && self.link_count(p) >= 3
     }
 
+    /// Whether a tile is one of the eight around a roundabout, which its ring spills into.
+    pub fn near_roundabout(&self, p: Pos) -> bool {
+        (-1..=1).any(|dy| {
+            (-1..=1).any(|dx| {
+                let q = (p.0 + dx, p.1 + dy);
+                (dx, dy) != (0, 0) && in_bounds(q) && self.cells[idx(q)] == Cell::Road && self.junctions[idx(q)] == Junction::Roundabout
+            })
+        })
+    }
+
     /// Put a roundabout or traffic light on a road tile.
     pub fn place_junction(&mut self, p: Pos, kind: Junction) -> EditResult {
         if !in_bounds(p) || self.game_over || self.cells[idx(p)] != Cell::Road || kind == Junction::Plain {
+            return EditResult::Blocked;
+        }
+        // A roundabout's ring needs the corners around it clear of buildings.
+        if !self.junction_fits(p, kind) {
             return EditResult::Blocked;
         }
         if self.junctions[idx(p)] == kind {
@@ -471,35 +641,102 @@ impl Sim {
         let Some(offer) = self.offer.take() else { return };
         let u = offer[i.min(1)];
         let inv = &mut self.inventory;
-        match u {
-            Upgrade::Bridge => inv.bridge_tiles += BRIDGE_TILES,
-            Upgrade::Tunnel => inv.tunnel_tiles += TUNNEL_TILES,
-            Upgrade::Roundabout => inv.roundabouts += 1,
-            Upgrade::TrafficLight => inv.lights += 1,
-            Upgrade::Highway => inv.highways += 1,
-            Upgrade::ExtraRoads => self.roads_left += EXTRA_ROADS,
-        }
-        self.toast = Some((format!("{} added", u.name()), 2.5));
+        let what = match u {
+            Upgrade::Bridge => {
+                inv.bridge_tiles += BRIDGE_TILES;
+                format!("+{} bridge tiles", BRIDGE_TILES)
+            }
+            Upgrade::Tunnel => {
+                inv.tunnel_tiles += TUNNEL_TILES;
+                format!("+{} tunnel tiles", TUNNEL_TILES)
+            }
+            Upgrade::Roundabout => {
+                inv.roundabouts += 2;
+                "+2 roundabouts".to_string()
+            }
+            Upgrade::TrafficLight => {
+                inv.lights += 3;
+                "+3 traffic lights".to_string()
+            }
+            Upgrade::Highway => {
+                inv.highways += 1;
+                "+1 highway".to_string()
+            }
+            Upgrade::ExtraRoads => String::new(),
+        };
+        self.roads_left += u.bonus_roads();
+        self.last_pick = Some(u);
+        let roads = format!("+{} road tiles", u.bonus_roads());
+        let msg = if what.is_empty() { roads } else { format!("{} and {}", what, roads) };
+        self.toast = Some((msg, 3.0));
     }
 
+    /// Two different cards, weighted, following these rules: last week's pick isn't offered
+    /// again, cards unlock by week, bridges and tunnels only where the map has water or hills,
+    /// and a highway is guaranteed if none has been offered for four offers.
     fn make_offer(&mut self) -> [Upgrade; 2] {
         let has = |t: Terrain| self.terrain.iter().any(|x| *x == t);
-        let mut pool = vec![Upgrade::Roundabout, Upgrade::TrafficLight, Upgrade::Highway, Upgrade::ExtraRoads];
-        if has(Terrain::Water) {
-            pool.push(Upgrade::Bridge);
+        let week = self.week;
+        let mut pool: Vec<Upgrade> = [
+            Upgrade::ExtraRoads,
+            Upgrade::Roundabout,
+            Upgrade::TrafficLight,
+            Upgrade::Highway,
+            Upgrade::Bridge,
+            Upgrade::Tunnel,
+        ]
+        .into_iter()
+        .filter(|u| week >= u.unlock_week())
+        .filter(|u| match u {
+            Upgrade::Bridge => has(Terrain::Water),
+            Upgrade::Tunnel => has(Terrain::Hill),
+            _ => true,
+        })
+        .filter(|u| Some(*u) != self.last_pick)
+        .collect();
+        let mut out = Vec::new();
+        if week >= Upgrade::Highway.unlock_week() && self.since_highway >= 4 && pool.contains(&Upgrade::Highway) {
+            out.push(Upgrade::Highway);
+            pool.retain(|u| *u != Upgrade::Highway);
         }
-        if has(Terrain::Hill) {
-            pool.push(Upgrade::Tunnel);
+        while out.len() < 2 && !pool.is_empty() {
+            let total: u32 = pool.iter().map(|u| u.weight()).sum();
+            let mut r = self.rng.below(total as usize) as u32;
+            let mut k = 0;
+            while r >= pool[k].weight() {
+                r -= pool[k].weight();
+                k += 1;
+            }
+            out.push(pool.swap_remove(k));
         }
-        let a = pool.swap_remove(self.rng.below(pool.len()));
-        let b = pool.swap_remove(self.rng.below(pool.len()));
-        [a, b]
+        while out.len() < 2 {
+            // Only possible on a tiny pool early on; fall back to something useful.
+            out.push(if out.contains(&Upgrade::ExtraRoads) { Upgrade::Roundabout } else { Upgrade::ExtraRoads });
+        }
+        if out.contains(&Upgrade::Highway) {
+            self.since_highway = 0;
+        } else if week >= Upgrade::Highway.unlock_week() {
+            self.since_highway += 1;
+        }
+        [out[0], out[1]]
+    }
+
+    /// Which axis a traffic light at `p` lets through right now: 0 = east-west, 1 =
+    /// north-south, None during the short all-red gap between phases.
+    pub fn light_axis(&self, p: Pos) -> Option<usize> {
+        let half = LIGHT_PHASE + LIGHT_CLEAR;
+        let t = self.time + (p.0 + p.1) as f32 * half;
+        let k = (t / half).floor();
+        if t - k * half >= LIGHT_PHASE {
+            None
+        } else {
+            Some((k as i64).rem_euclid(2) as usize)
+        }
     }
 
     /// Whether the light at `p` currently lets traffic heading along `dir` (DIRS index) through.
     pub fn light_green(&self, p: Pos, dir: usize) -> bool {
-        let phase = ((self.time / LIGHT_PHASE) as i64 + (p.0 + p.1) as i64) % 2;
-        dir % 2 == phase as usize
+        self.light_axis(p) == Some(dir % 2)
     }
 
     fn tile_occupancy(&self, p: Pos) -> u32 {
@@ -511,7 +748,15 @@ impl Sim {
 
     fn footprint_free(&self, origin: Pos, size: (i32, i32), doors: &[Pos]) -> bool {
         // The footprint, its driveways and a one-tile margin must be clear of buildings,
-        // and the footprint and driveways must sit on empty grass.
+        // and the footprint and driveways must sit on empty grass. The row in front of the
+        // car park must be open land or road, so a road can always reach the driveways.
+        let front = origin.1 + size.1 + 1;
+        for x in origin.0..origin.0 + size.0 {
+            let p = (x, front);
+            if !in_bounds(p) || !(self.cells[idx(p)] == Cell::Road || (self.cells[idx(p)] == Cell::Empty && self.terrain[idx(p)] == Terrain::Grass)) {
+                return false;
+            }
+        }
         for y in origin.1 - 1..=origin.1 + size.1 {
             for x in origin.0 - 1..=origin.0 + size.0 {
                 let p = (x, y);
@@ -520,6 +765,9 @@ impl Sim {
                 }
                 let inside = x >= origin.0 && x < origin.0 + size.0 && y >= origin.1 && y < origin.1 + size.1;
                 let c = self.cells[idx(p)];
+                if (inside || doors.contains(&p)) && self.near_roundabout(p) {
+                    return false;
+                }
                 if inside || doors.contains(&p) {
                     if c != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass {
                         return false;
@@ -540,7 +788,8 @@ impl Sim {
         } else {
             vec![(origin.0 + 1, front)]
         };
-        if !self.footprint_free(origin, size, &doors) {
+        let lot: Vec<Pos> = (origin.0..origin.0 + size.0).map(|x| (x, front)).collect();
+        if !self.footprint_free(origin, size, &lot) {
             return None;
         }
         let id = self.dests.len();
@@ -549,8 +798,8 @@ impl Sim {
                 self.cells[idx((x, y))] = Cell::Dest(id);
             }
         }
-        for d in &doors {
-            self.cells[idx(*d)] = Cell::Door(id);
+        for p in &lot {
+            self.cells[idx(*p)] = if doors.contains(p) { Cell::Door(id) } else { Cell::Park(id) };
         }
         self.dests.push(Dest {
             born: self.time,
@@ -600,19 +849,20 @@ impl Sim {
         let min = *counts.iter().min().unwrap_or(&0);
         let choices: Vec<usize> = (0..n).filter(|c| counts[*c] == min).collect();
         let color = choices[self.rng.below(choices.len())];
-        // Big shops (two driveways, busier) start appearing from week 2.
-        let big = self.week >= 2 && self.rng.f32() < 0.35;
+        let big = self.rng.f32() < big_shop_chance(self.week);
         let size = if big { BIG_SHOP } else { SMALL_SHOP };
-        for _ in 0..200 {
-            let o = (
-                1 + self.rng.below((W - size.0 - 2) as usize) as i32,
-                1 + self.rng.below((H - size.1 - 3) as usize) as i32,
-            );
-            // Keep destinations apart so the map stays readable.
-            let far = self.dests.iter().all(|d| {
-                (d.origin.0 - o.0).abs() + (d.origin.1 - o.1).abs() >= 7
-            });
-            if far {
+        // Keep destinations apart so the map stays readable; if the map is getting full,
+        // accept closer spacing rather than silently giving up.
+        for gap in [7, 4] {
+            for _ in 0..200 {
+                let o = (
+                    1 + self.rng.below((W - size.0 - 2) as usize) as i32,
+                    1 + self.rng.below((H - size.1 - 3) as usize) as i32,
+                );
+                let far = self.dests.iter().all(|d| (d.origin.0 - o.0).abs() + (d.origin.1 - o.1).abs() >= gap);
+                if !far || !self.dest_site_reachable(o, size) {
+                    continue;
+                }
                 if let Some(id) = self.place_dest(color, o, big) {
                     return Some(id);
                 }
@@ -621,10 +871,68 @@ impl Sim {
         None
     }
 
+    /// Crossing budget for spawn checks: what the player holds now plus one more upgrade.
+    fn crossing_budget(&self) -> u32 {
+        self.inventory.bridge_tiles + self.inventory.tunnel_tiles + BRIDGE_TILES.max(TUNNEL_TILES)
+    }
+
+    /// Fewest water or hill tiles a road would need to cross to get from any of `starts` to
+    /// each tile, building only on free tiles (a 0-1 search). Buildings are reached but not
+    /// passed through. This is the "could the player ever connect this?" check that keeps
+    /// spawns from landing somewhere unreachable.
+    fn crossing_costs(&self, starts: &[Pos]) -> Vec<u32> {
+        let mut cost = vec![u32::MAX; (W * H) as usize];
+        let mut dq = std::collections::VecDeque::new();
+        for s in starts {
+            if in_bounds(*s) {
+                cost[idx(*s)] = 0;
+                dq.push_back(*s);
+            }
+        }
+        while let Some(p) = dq.pop_front() {
+            let c = cost[idx(p)];
+            if !starts.contains(&p) && !matches!(self.cells[idx(p)], Cell::Empty | Cell::Road) {
+                continue;
+            }
+            for d in DIRS {
+                let q = (p.0 + d.0, p.1 + d.1);
+                if !in_bounds(q) {
+                    continue;
+                }
+                let step = match (self.cells[idx(q)], self.terrain[idx(q)]) {
+                    (Cell::Road, _) | (_, Terrain::Grass) => 0,
+                    _ => 1,
+                };
+                if c + step < cost[idx(q)] {
+                    cost[idx(q)] = c + step;
+                    if step == 0 {
+                        dq.push_front(q);
+                    } else {
+                        dq.push_back(q);
+                    }
+                }
+            }
+        }
+        cost
+    }
+
+    /// A shop at `origin` must be connectable to the homes already in town.
+    fn dest_site_reachable(&self, origin: Pos, size: (i32, i32)) -> bool {
+        if self.homes.is_empty() {
+            return true;
+        }
+        let front: Vec<Pos> = (origin.0..origin.0 + size.0).map(|x| (x, origin.1 + size.1)).collect();
+        let cost = self.crossing_costs(&front);
+        let budget = self.crossing_budget();
+        self.homes.iter().any(|h| cost[idx(h.pos)] <= budget)
+    }
+
     /// Place a home of the destination's colour a few tiles away from it.
     pub fn spawn_home(&mut self, dest: usize) -> Option<usize> {
         let d = &self.dests[dest];
         let (door, color) = (d.doors[0], d.color);
+        let cost = self.crossing_costs(&d.doors.clone());
+        let budget = self.crossing_budget();
         let mut options = Vec::new();
         for y in door.1 - 9..=door.1 + 9 {
             for x in door.0 - 12..=door.0 + 12 {
@@ -633,7 +941,11 @@ impl Sim {
                 if !(4..=12).contains(&dist) || !in_bounds(p) {
                     continue;
                 }
-                if self.cells[idx(p)] != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass {
+                if self.cells[idx(p)] != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass || self.near_roundabout(p) {
+                    continue;
+                }
+                // Never put a home where no road could reach its shop, or across a shop's entrance.
+                if cost[idx(p)] > budget || self.blocks_entrance(p) {
                     continue;
                 }
                 // Needs at least two open sides and no building directly next to it.
@@ -657,6 +969,24 @@ impl Sim {
         }
         let p = options[self.rng.below(options.len())];
         Some(self.add_home_facing(p, color, Some(door)))
+    }
+
+    /// Undo the most recent `place_dest` (used when no home can be placed for it).
+    fn remove_last_dest(&mut self) {
+        let Some(d) = self.dests.pop() else { return };
+        let id = self.dests.len();
+        for c in self.cells.iter_mut() {
+            if matches!(*c, Cell::Dest(i) | Cell::Door(i) | Cell::Park(i) if i == id) {
+                *c = Cell::Empty;
+            }
+        }
+        let _ = d;
+        self.roads_dirty = true;
+    }
+
+    /// Whether `p` is right in front of a shop's car park.
+    fn blocks_entrance(&self, p: Pos) -> bool {
+        matches!(self.cell((p.0, p.1 - 1)), Cell::Door(_) | Cell::Park(_))
     }
 
     /// Place a home directly, for tests and scripted setups.
@@ -697,6 +1027,7 @@ impl Sim {
             cur: p,
             slot: None,
             retry: 0.0,
+            wait: 0.0,
         });
         id
     }
@@ -750,9 +1081,24 @@ impl Sim {
     fn link_ok(&self, a: Pos, b: Pos) -> bool {
         let ok = |h: Pos, other: Pos| match self.cells[idx(h)] {
             Cell::Home(id) => self.driveway(id) == other,
+            // A car park only joins its own shop's car park and driveways.
+            Cell::Park(id) => matches!(self.cells[idx(other)], Cell::Park(j) | Cell::Door(j) if j == id),
+            // A shop driveway joins its own car park, and the outside world only straight
+            // ahead: never from the side or behind, just like a house.
+            Cell::Door(id) => matches!(self.cells[idx(other)], Cell::Park(j) | Cell::Door(j) if j == id) || other == (h.0, h.1 + 1),
             _ => true,
         };
         ok(a, b) && ok(b, a)
+    }
+
+    /// Tiles a car may drive across on its way somewhere else: roads, and the car park and
+    /// driveways of a big shop (which link its two driveways).
+    pub fn passable(&self, p: Pos) -> bool {
+        match self.cells[idx(p)] {
+            Cell::Road => true,
+            Cell::Park(d) | Cell::Door(d) => self.dests[d].big(),
+            _ => false,
+        }
     }
 
     // ----- Pathfinding -------------------------------------------------
@@ -782,7 +1128,7 @@ impl Sim {
                 path.reverse();
                 return Some(path);
             }
-            if p != start && self.cells[i] != Cell::Road {
+            if p != start && !self.passable(p) {
                 continue;
             }
             let mut nbrs: Vec<(Pos, u32)> = DIRS.iter().map(|dd| ((p.0 + dd.0, p.1 + dd.1), 10)).collect();
@@ -799,7 +1145,7 @@ impl Sim {
                     continue;
                 }
                 let qi = idx(q);
-                let enterable = self.cells[qi] == Cell::Road || is_goal(q);
+                let enterable = self.passable(q) || is_goal(q);
                 if !enterable || !self.link_ok(p, q) {
                     continue;
                 }
@@ -875,9 +1221,13 @@ impl Sim {
             self.week += 1;
             self.roads_left += ROADS_PER_WEEK;
             self.toast = Some((format!("Week {}: +{} road tiles", self.week, ROADS_PER_WEEK), 4.0));
-            self.offer = Some(self.make_offer());
+            if offer_week(self.week) {
+                self.offer = Some(self.make_offer());
+            }
             self.events.push(Event::WeekEnd);
+            self.schedule_rush();
         }
+        self.update_rush();
 
         if self.roads_dirty {
             self.roads_dirty = false;
@@ -902,11 +1252,42 @@ impl Sim {
         }
     }
 
+    /// Plan this week's rush wave, if it is a rush week and there is a colour to rush.
+    fn schedule_rush(&mut self) {
+        self.rush = None;
+        if !rush_week(self.week) || self.dests.is_empty() {
+            return;
+        }
+        let colors: Vec<usize> = (0..MAX_COLORS).filter(|c| self.dests.iter().any(|d| d.color == *c)).collect();
+        let color = colors[self.rng.below(colors.len())];
+        let start = (self.week - 1) as f32 * WEEK_LENGTH + RUSH_WARN_AT + RUSH_LEAD;
+        self.rush = Some(Rush { color, start, end: start + RUSH_LENGTH, announced: false });
+    }
+
+    fn update_rush(&mut self) {
+        let Some(mut r) = self.rush else { return };
+        if !r.announced && self.time >= r.start - RUSH_LEAD {
+            r.announced = true;
+            self.events.push(Event::RushSoon);
+            self.toast = Some((format!("Rush hour soon at the {} shops", COLOR_NAMES[r.color]), 4.0));
+        }
+        self.rush = (self.time < r.end).then_some(r);
+    }
+
+    /// Seconds until the rush starts (negative once running), if one is announced.
+    pub fn rush_countdown(&self) -> Option<(usize, f32)> {
+        let r = self.rush?;
+        (self.time >= r.start - RUSH_LEAD).then(|| (r.color, r.start - self.time))
+    }
+
     fn update_spawning(&mut self, dt: f32) {
-        let pace = 1.0 + 0.15 * (self.week as f32 - 1.0);
+        let pace = pace(self.week);
         self.home_timer -= dt * pace;
-        if self.home_timer <= 0.0 && !self.dests.is_empty() {
-            self.home_timer = self.rng.range_f32(10.0, 16.0);
+        // Homes keep pace with shops: about five per shop at most, so the town grows
+        // denser without burying the map.
+        let room = self.homes.len() < 5 * self.dests.len() + 2;
+        if self.home_timer <= 0.0 && !self.dests.is_empty() && room {
+            self.home_timer = self.rng.range_f32(12.0, 18.0);
             // Favour destinations with few homes nearby.
             let mut best = 0;
             let mut best_score = f32::MAX;
@@ -923,25 +1304,47 @@ impl Sim {
                 self.events.push(Event::NewHome);
             }
         }
-        self.dest_timer -= dt * pace;
-        if self.dest_timer <= 0.0 {
-            self.dest_timer = self.rng.range_f32(40.0, 55.0);
-            if let Some(d) = self.spawn_random_dest() {
-                self.spawn_home(d);
-                self.toast = Some(("A new destination has opened".into(), 3.0));
-                self.events.push(Event::NewDest);
+        // Shops follow a schedule: each week brings the town up to its target, a little
+        // after the week starts. A failed placement retries five seconds later.
+        let due = self.dests.len() < target_dests(self.week) && self.week_progress() >= 0.3;
+        if due {
+            self.dest_timer -= dt;
+            if self.dest_timer <= 0.0 {
+                let placed = self.spawn_random_dest().filter(|d| {
+                    if self.spawn_home(*d).is_some() {
+                        return true;
+                    }
+                    // No room for a home that could reach it: take the shop back.
+                    self.remove_last_dest();
+                    false
+                });
+                if placed.is_some() {
+                    self.toast = Some(("A new destination has opened".into(), 3.0));
+                    self.events.push(Event::NewDest);
+                    self.dest_timer = 8.0;
+                } else {
+                    self.dest_timer = 5.0;
+                }
             }
         }
     }
 
     fn update_pins(&mut self, dt: f32) {
-        let interval = (8.0 - 0.6 * (self.week as f32 - 1.0)).max(2.5);
+        let interval = pin_interval(self.week) * self.map.difficulty();
+        let rush = self.rush.filter(|r| r.active(self.time)).map(|r| r.color);
         for i in 0..self.dests.len() {
-            let jitter = self.rng.range_f32(0.7, 1.3);
+            // A shop whose colour has no homes yet waits for one before asking for trips.
+            let color = self.dests[i].color;
+            if !self.homes.iter().any(|h| h.color == color) {
+                continue;
+            }
             let d = &mut self.dests[i];
             d.pin_timer -= dt;
             if d.pin_timer <= 0.0 {
-                d.pin_timer = interval * jitter / if d.big() { 1.6 } else { 1.0 };
+                let jitter = self.rng.range_f32(0.7, 1.3);
+                let busy = if d.big() { 1.6 } else { 1.0 };
+                let rushing = if rush == Some(d.color) { RUSH_FACTOR } else { 1.0 };
+                d.pin_timer = interval * jitter * rushing / busy;
                 d.pins += 1;
             }
             if d.pins > d.pin_limit() {
@@ -1004,8 +1407,9 @@ impl Sim {
                 self.cars[c].retry -= dt;
                 if self.cars[c].retry <= 0.0 {
                     let dest = &mut self.dests[d];
-                    dest.pins -= 1;
-                    dest.assigned -= 1;
+                    debug_assert!(dest.pins > 0 && dest.assigned > 0);
+                    dest.pins = dest.pins.saturating_sub(1);
+                    dest.assigned = dest.assigned.saturating_sub(1);
                     self.score += 1;
                     self.events.push(Event::TripDone);
                     self.cars[c].state = CarState::ToHome;
@@ -1043,19 +1447,17 @@ impl Sim {
                         return; // queue behind the car ahead
                     }
                     if self.is_crossing(next) {
-                        let b = idx(next) * 4;
-                        let busy = self.occ[b..b + 4].iter().any(|o| *o);
                         let wait = match self.junctions[idx(next)] {
-                            Junction::Plain => busy,
+                            Junction::Plain => self.crossing_busy(c, next) && self.cars[c].wait < JAM_BREAK,
                             Junction::Roundabout => false,
                             Junction::Light => !self.light_green(next, dir),
                         };
                         if wait {
+                            self.cars[c].wait += dt;
                             return; // wait at the junction
                         }
                     }
-                    let car = &mut self.cars[c];
-                    let _ = car;
+                    self.cars[c].wait = 0.0;
                     self.occ[s] = true;
                 }
                 let car = &mut self.cars[c];
@@ -1069,6 +1471,16 @@ impl Sim {
                 car.progress = 0.0;
             }
         }
+    }
+
+    /// Whether a plain crossing is taken by another car. A car that is only passing the other
+    /// way between this crossing and the one `c` is on doesn't count: they use opposite lanes,
+    /// and counting them let two neighbouring crossings block each other forever.
+    fn crossing_busy(&self, c: usize, next: Pos) -> bool {
+        let here = self.cars[c].cur;
+        self.cars.iter().enumerate().any(|(k, o)| {
+            k != c && o.slot.is_some() && o.cur == next && o.path.get(o.i + 1) != Some(&here)
+        })
     }
 
     fn arrive(&mut self, c: usize) {
@@ -1193,6 +1605,7 @@ mod tests {
     fn overflow_ends_the_game() {
         let mut s = Sim::empty(3);
         s.add_dest((10, 5), 0).unwrap();
+        s.add_home((25, 15), 0); // unconnected, so nobody serves the shop
         s.dests[0].pins = PIN_LIMIT + 3;
         run(&mut s, OVERFLOW_TIME + 2.0);
         assert!(s.game_over);
@@ -1305,6 +1718,55 @@ mod tests {
     }
 
     #[test]
+    fn shops_have_a_car_park_and_big_ones_can_be_driven_through() {
+        let mut s = Sim::empty(8);
+        let small = s.add_dest((3, 3), 1).unwrap();
+        assert_eq!(s.cell((3, 5)), Cell::Park(small));
+        assert_eq!(s.cell((4, 5)), Cell::Door(small));
+        assert_eq!(s.cell((5, 5)), Cell::Park(small));
+        let big = s.add_big_dest((10, 5), 2).unwrap();
+        assert_eq!(s.cell((11, 7)), Cell::Park(big));
+        // A teal home east of the big shop; its own shop lies west, reachable only by
+        // driving in one driveway, across the car park and out the other.
+        s.add_home((16, 9), 0);
+        for p in [(15, 9), (14, 9), (13, 9), (13, 8)] {
+            s.place_road(p);
+        }
+        let target = s.add_dest((3, 9), 0).unwrap();
+        for p in [(10, 8), (10, 9), (9, 9), (8, 9), (7, 9), (7, 10), (7, 11), (7, 12), (6, 12), (5, 12), (4, 12)] {
+            s.place_road(p);
+        }
+        assert_eq!(s.cell((4, 11)), Cell::Door(target));
+        // A road beside the car park doesn't connect into it except at a driveway.
+        s.place_road((11, 8));
+        let path = s.find_path((16, 9), &|p| p == (4, 11)).expect("route through the car park");
+        assert!(path.contains(&(12, 7)) && path.contains(&(11, 7)), "{:?}", path);
+        assert!(!path.contains(&(11, 8)));
+        // Roads that touch a driveway from the side don't count.
+        s.place_road((9, 7));
+        assert!(s.find_path((9, 7), &|p| p == (10, 7)).is_none());
+        s.dests[target].pins = 2;
+        s.dests[big].pins = 0;
+        run(&mut s, 20.0);
+        assert!(s.score >= 1, "score was {}", s.score);
+    }
+
+    #[test]
+    fn roundabouts_need_clear_corners_and_keep_them_clear() {
+        let mut s = Sim::empty(14);
+        for x in 4..=8 {
+            s.place_road((x, 6));
+        }
+        s.inventory.roundabouts = 2;
+        s.add_home((5, 5), 0);
+        assert_eq!(s.place_junction((6, 6), Junction::Roundabout), EditResult::Blocked);
+        assert_eq!(s.place_junction((8, 6), Junction::Roundabout), EditResult::Ok);
+        assert!(s.near_roundabout((9, 7)));
+        // Shops won't open in its corners either.
+        assert_eq!(s.add_dest((8, 7), 1), None);
+    }
+
+    #[test]
     fn bridges_and_tunnels_use_their_own_allowance() {
         let mut s = Sim::empty(9);
         s.terrain[idx((5, 5))] = Terrain::Water;
@@ -1351,9 +1813,18 @@ mod tests {
         let mut s = crossing();
         assert!(s.is_crossing((10, 10)));
         // A car already crossing eastbound blocks a northbound one.
-        s.occ[idx((10, 10)) * 4] = true;
         s.add_home((10, 12), 0);
         s.homes[0].facing = 3;
+        s.add_home((7, 10), 0);
+        let slot = idx((10, 10)) * 4;
+        s.occ[slot] = true;
+        let o = &mut s.cars[1];
+        o.state = CarState::ToHome;
+        o.path = vec![(9, 10), (10, 10), (11, 10)];
+        o.i = 1;
+        o.cur = (10, 10);
+        o.prev = (9, 10);
+        o.slot = Some(slot);
         let c = &mut s.cars[0];
         c.state = CarState::ToHome;
         c.path = vec![(10, 11), (10, 10), (10, 9)];
@@ -1363,6 +1834,11 @@ mod tests {
         c.progress = 1.0;
         s.update_car(0, DT);
         assert_eq!(s.cars[0].cur, (10, 11), "waits at a busy plain crossing");
+        // A car coming the other way out of the crossing toward us doesn't block.
+        s.cars[1].path = vec![(10, 9), (10, 10), (10, 11)];
+        s.cars[1].i = 1;
+        assert!(!s.crossing_busy(0, (10, 10)));
+        s.cars[1].path = vec![(9, 10), (10, 10), (11, 10)];
         // With a roundabout it goes straight in.
         s.inventory.roundabouts = 1;
         assert_eq!(s.place_junction((10, 10), Junction::Roundabout), EditResult::Ok);
@@ -1375,10 +1851,13 @@ mod tests {
         let mut s = crossing();
         s.inventory.lights = 1;
         assert_eq!(s.place_junction((10, 10), Junction::Light), EditResult::Ok);
-        let a = s.light_green((10, 10), 0);
-        assert_ne!(a, s.light_green((10, 10), 1));
-        s.time += LIGHT_PHASE;
-        assert_ne!(a, s.light_green((10, 10), 0));
+        let axis = s.light_axis((10, 10)).expect("a light starts on a phase");
+        assert!(s.light_green((10, 10), axis) && !s.light_green((10, 10), axis + 1));
+        // A short all-red gap, then the other way goes.
+        s.time += LIGHT_PHASE + 0.1;
+        assert_eq!(s.light_axis((10, 10)), None);
+        s.time += LIGHT_CLEAR;
+        assert_eq!(s.light_axis((10, 10)), Some(1 - axis));
         // Erasing the tile gives the light back.
         s.erase_road((10, 10));
         assert_eq!(s.inventory.lights, 1);
@@ -1423,7 +1902,7 @@ mod tests {
     #[test]
     fn spawning_continues_over_time() {
         let mut s = Sim::new(11);
-        for _ in 0..(150.0 / DT) as usize {
+        for _ in 0..(2.5 * WEEK_LENGTH / DT) as usize {
             for d in &mut s.dests {
                 d.pins = 0;
             }
@@ -1435,5 +1914,103 @@ mod tests {
         assert!(s.homes.len() > 2);
         assert!(s.dests.len() > 1);
         assert!(s.week >= 3);
+    }
+
+    #[test]
+    fn difficulty_climbs_then_levels_off() {
+        assert_eq!(pin_interval(1), 11.0);
+        assert!(pin_interval(5) < pin_interval(4));
+        assert_eq!(pin_interval(11), 4.0);
+        assert_eq!(pin_interval(14), 4.0, "flat after week 11");
+        assert_eq!(pin_interval(16), 3.5);
+        assert_eq!(pin_interval(40), 3.0);
+        assert_eq!(pace(11), 2.0);
+        assert_eq!(pace(30), 2.0, "pace is capped");
+        assert_eq!(colors_for_week(1), 2);
+        assert_eq!(colors_for_week(12), 6);
+        assert!((1..60).all(|w| target_dests(w + 1) >= target_dests(w)));
+        assert_eq!(target_dests(60), 20);
+        assert!(!rush_week(8) && rush_week(9) && rush_week(13) && !rush_week(14));
+        assert!(offer_week(12) && offer_week(13) && !offer_week(14));
+    }
+
+    #[test]
+    fn offers_follow_the_card_rules() {
+        let mut s = Sim::new_on(MapKind::Bayside, 21);
+        let mut weeks_without_highway = 0;
+        for week in 2..=40 {
+            s.week = week;
+            if !offer_week(week) {
+                continue;
+            }
+            let last = s.last_pick;
+            let o = s.make_offer();
+            assert_ne!(o[0], o[1]);
+            assert!(!o.contains(&Upgrade::Tunnel) || s.terrain.contains(&Terrain::Hill));
+            assert!(last.is_none_or(|l| !o.contains(&l)), "week {} repeats last pick", week);
+            if week < 3 {
+                assert!(!o.contains(&Upgrade::Highway));
+            }
+            if o.contains(&Upgrade::Highway) {
+                weeks_without_highway = 0;
+            } else if week >= 3 {
+                weeks_without_highway += 1;
+            }
+            assert!(weeks_without_highway <= 4, "highway pity timer");
+            s.offer = Some(o);
+            s.choose(0);
+        }
+    }
+
+    #[test]
+    fn a_rush_wave_is_announced_then_speeds_up_one_colour() {
+        let mut s = Sim::new(4);
+        s.week = 8;
+        s.time = 8.0 * WEEK_LENGTH - DT * 0.5;
+        s.step();
+        assert_eq!(s.week, 9);
+        s.offer = None;
+        let r = s.rush.expect("week 9 has a rush");
+        assert!(s.rush_countdown().is_none(), "not announced yet");
+        s.time = r.start - RUSH_LEAD;
+        s.step();
+        assert!(s.rush_countdown().is_some());
+        assert!(s.events.contains(&Event::RushSoon));
+        s.time = r.end;
+        s.step();
+        assert!(s.rush.is_none());
+    }
+
+    #[test]
+    fn homes_never_spawn_cut_off_from_their_shop() {
+        // A shop on the left, a wide river, nothing to cross it with: every new home
+        // must land on the shop's side.
+        let mut s = Sim::empty(31);
+        for y in 0..H {
+            for x in 14..24 {
+                s.terrain[idx((x, y))] = Terrain::Water;
+            }
+        }
+        let d = s.add_dest((5, 8), 0).unwrap();
+        for _ in 0..30 {
+            if let Some(h) = s.spawn_home(d) {
+                assert!(s.homes[h].pos.0 < 14, "home at {:?} is across the river", s.homes[h].pos);
+            }
+        }
+        assert!(!s.homes.is_empty());
+    }
+
+    #[test]
+    fn shops_without_homes_wait_and_entrances_stay_clear() {
+        let mut s = Sim::empty(8);
+        let d = s.add_dest((10, 5), 2).unwrap();
+        run(&mut s, 30.0);
+        assert_eq!(s.dests[d].pins, 0, "no homes of its colour yet, so no demand");
+        // Homes never land in the row in front of a shop's car park.
+        for _ in 0..40 {
+            s.spawn_home(d);
+        }
+        let front = s.dests[d].origin.1 + s.dests[d].size.1 + 1;
+        assert!(s.homes.iter().all(|h| !(h.pos.1 == front && (10..13).contains(&h.pos.0))));
     }
 }

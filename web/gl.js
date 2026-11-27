@@ -589,7 +589,8 @@ function into_sapp_keycode(key_code) {
 
 function dpi_scale() {
     if (high_dpi) {
-        return window.devicePixelRatio || 1.0;
+        // Little Lanes: cap at 2x. Phones at 3x pay a lot of GPU time for detail nobody can see.
+        return Math.min(window.devicePixelRatio || 1.0, 2.0);
     } else {
         return 1.0;
     }

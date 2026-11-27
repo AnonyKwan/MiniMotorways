@@ -61,6 +61,15 @@ impl MapKind {
         }
     }
 
+    /// Multiplier on time between pins: below 1 makes a map busier and harder.
+    pub fn difficulty(self) -> f32 {
+        match self {
+            MapKind::Bayside => 1.0,
+            MapKind::TwinIslands => 0.9,
+            MapKind::Highland => 0.95,
+        }
+    }
+
     pub fn index(self) -> usize {
         MapKind::ALL.iter().position(|k| *k == self).unwrap_or(0)
     }

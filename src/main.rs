@@ -607,6 +607,7 @@ async fn main() {
                         Cell::Home(_) => 'H',
                         Cell::Dest(_) => 'D',
                         Cell::Door(_) => 'd',
+                        Cell::Park(_) => 'p',
                     };
                     out.push_str(&format!("{},{},{:.1},{:.1},{}{};", x, y, p.x, p.y, t, c));
                 }
@@ -713,7 +714,7 @@ async fn main() {
         }
 
         // ---- Drawing ----------------------------------------------------------
-        clear_background(render3d::SKY);
+        clear_background(render3d::ground_clear());
         let time = get_time() as f32;
         match g.screen {
             Screen::Title => {

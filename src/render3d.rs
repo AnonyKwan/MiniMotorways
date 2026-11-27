@@ -11,7 +11,6 @@ use crate::{PALETTE, WARN};
 // ---- Palette -------------------------------------------------------------------
 
 const GRASS: Color = Color::new(0.62, 0.80, 0.47, 1.0);
-const EARTH_DARK: Color = Color::new(0.47, 0.37, 0.27, 1.0);
 const SAND: Color = Color::new(0.93, 0.87, 0.68, 1.0);
 const WATER: Color = Color::new(0.38, 0.68, 0.86, 1.0);
 const WATER_DEEP: Color = Color::new(0.27, 0.53, 0.72, 1.0);
@@ -427,28 +426,114 @@ fn terrain_at(s: &Sim, x: i32, z: i32) -> Option<Terrain> {
     (x >= 0 && z >= 0 && x < W && z < H).then(|| s.terrain[idx((x, z))])
 }
 
+/// How far the countryside reaches past the board, so the screen never shows an empty edge.
+const APRON: i32 = 16;
+
+/// Terrain around the board: rivers and channels that touch an edge carry straight on,
+/// everything else is plain grass.
+fn ext_terrain(s: &Sim, x: i32, z: i32) -> Terrain {
+    if let Some(t) = terrain_at(s, x, z) {
+        return t;
+    }
+    let inside_x = (0..W).contains(&x);
+    let inside_z = (0..H).contains(&z);
+    let edge = if inside_z && !inside_x {
+        terrain_at(s, x.clamp(0, W - 1), z)
+    } else if inside_x && !inside_z {
+        terrain_at(s, x, z.clamp(0, H - 1))
+    } else {
+        None
+    };
+    if edge == Some(Terrain::Water) {
+        Terrain::Water
+    } else {
+        Terrain::Grass
+    }
+}
+
+/// Colour of the countryside outside the play area: the same grass, a little muted.
+fn apron_grass() -> Color {
+    Color::new(GRASS.r * 0.9, GRASS.g * 0.92, GRASS.b * 0.88, 1.0)
+}
+
+/// What the screen shows past the edge of everything drawn: the countryside's lit colour.
+pub fn ground_clear() -> Color {
+    shade(apron_grass(), Vec3::Y)
+}
+
+fn draw_apron(mb: &mut Mb, s: &Sim) {
+    let grass = apron_grass();
+    let outside = |x: i32, z: i32| !(0..W).contains(&x) || !(0..H).contains(&z);
+    for z in -APRON..H + APRON {
+        // Merge runs of outside grass into long strips to keep the mesh small.
+        let mut x = -APRON;
+        while x < W + APRON {
+            if !outside(x, z) {
+                x += 1;
+                continue;
+            }
+            let t = ext_terrain(s, x, z);
+            let start = x;
+            while x < W + APRON && outside(x, z) && ext_terrain(s, x, z) == t {
+                x += 1;
+            }
+            if t == Terrain::Grass {
+                mb.rect_y(start as f32, z as f32, x as f32, z as f32 + 1.0, GROUND_Y - 0.001, grass);
+            }
+        }
+        // Banks where outside water meets land.
+        for x in -APRON..W + APRON {
+            if !outside(x, z) || ext_terrain(s, x, z) != Terrain::Water {
+                continue;
+            }
+            for d in DIRS {
+                if ext_terrain(s, x + d.0, z + d.1) == Terrain::Water {
+                    continue;
+                }
+                let (fx, fz) = (x as f32, z as f32);
+                let (a, b) = match d {
+                    (1, 0) => (vec2(fx + 1.0, fz), vec2(fx + 1.0, fz + 1.0)),
+                    (-1, 0) => (vec2(fx, fz), vec2(fx, fz + 1.0)),
+                    (0, 1) => (vec2(fx, fz + 1.0), vec2(fx + 1.0, fz + 1.0)),
+                    _ => (vec2(fx, fz), vec2(fx + 1.0, fz)),
+                };
+                mb.wall(a, b, WATER_Y, GROUND_Y, vec2(-d.0 as f32, -d.1 as f32), SAND);
+            }
+        }
+    }
+    // Scattered groves so the countryside isn't bare.
+    for z in -APRON..H + APRON {
+        for x in -APRON..W + APRON {
+            if !outside(x, z) || ext_terrain(s, x, z) != Terrain::Grass || hash(x, z, 60) > 0.16 {
+                continue;
+            }
+            let c = vec3(x as f32 + 0.3 + hash(x, z, 61) * 0.4, 0.0, z as f32 + 0.3 + hash(x, z, 62) * 0.4);
+            let sc = 0.8 + hash(x, z, 63) * 0.6;
+            mb.disk(c + vec3(0.12, 0.014, -0.08) * sc, 0.2 * sc, 8, SHADOW);
+            if hash(x, z, 64) < 0.4 {
+                mb.cone(c, 0.2 * sc, 0.6 * sc, 0.0, 6, hash(x, z, 65), PINE);
+            } else {
+                mb.cone(c + Vec3::Y * 0.2 * sc, 0.25 * sc, 0.24 * sc, 0.2 * sc, 6, hash(x, z, 65), if hash(x, z, 66) < 0.5 { LEAF_A } else { LEAF_B });
+            }
+        }
+    }
+    // A faint line marks where the play area ends.
+    let e = 0.03;
+    let (w, h) = (W as f32, H as f32);
+    let line = Color::new(1.0, 1.0, 1.0, 0.35);
+    for (x0, z0, x1, z1) in [(-e, -e, w + e, e), (-e, h - e, w + e, h + e), (-e, -e, e, h + e), (w - e, -e, w + e, h + e)] {
+        mb.rect_y(x0, z0, x1, z1, GROUND_Y + 0.003, line);
+    }
+}
+
 fn draw_terrain(mb: &mut Mb, s: &Sim) {
-    // Water surface over the whole board; land sits on top of it.
-    mb.rect_y(0.0, 0.0, W as f32, H as f32, WATER_Y, WATER);
-    // Board skirt
-    let skirt = |mb: &mut Mb, a: Vec2, b: Vec2, n: Vec2, top: f32| mb.wall(a, b, BASE_Y, top, n, EARTH_DARK);
-    for x in 0..W {
-        for (z, n) in [(0, vec2(0.0, -1.0)), (H - 1, vec2(0.0, 1.0))] {
-            let top = if terrain_at(s, x, z) == Some(Terrain::Water) { WATER_Y } else { GROUND_Y };
-            let zz = if n.y < 0.0 { 0.0 } else { H as f32 };
-            skirt(mb, vec2(x as f32, zz), vec2(x as f32 + 1.0, zz), n, top);
-        }
-    }
-    for z in 0..H {
-        for (x, n) in [(0, vec2(-1.0, 0.0)), (W - 1, vec2(1.0, 0.0))] {
-            let top = if terrain_at(s, x, z) == Some(Terrain::Water) { WATER_Y } else { GROUND_Y };
-            let xx = if n.x < 0.0 { 0.0 } else { W as f32 };
-            skirt(mb, vec2(xx, z as f32), vec2(xx, z as f32 + 1.0), n, top);
-        }
-    }
+    // Water surface under the board and the countryside around it; land sits on top.
+    let a = APRON as f32;
+    mb.rect_y(-a, -a, W as f32 + a, H as f32 + a, WATER_Y, WATER);
+    draw_apron(mb, s);
 
     // Land (grass and hills) as one smooth slab; off-board counts as land so the edges stay square.
-    let land = |x: i32, z: i32| terrain_at(s, x, z).map_or(true, |t| t != Terrain::Water);
+    let land = |x: i32, z: i32| ext_terrain(s, x, z) != Terrain::Water;
     for z in 0..H {
         for x in 0..W {
             if !land(x, z) {
@@ -531,6 +616,7 @@ fn connects(s: &Sim, from: Cell, from_pos: Pos, to: Pos) -> bool {
         Cell::Home(h) => from == Cell::Road && s.driveway(h) == from_pos,
         Cell::Door(_) => from == Cell::Road,
         Cell::Dest(id) => matches!(from, Cell::Door(d) if d == id),
+        Cell::Park(_) => false,
         Cell::Empty => false,
     }
 }
@@ -806,6 +892,31 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
         shadow_rect(mb, x0, z0, x1, z1, h + 0.3);
     }
     let grey = Color::new(0.82, 0.83, 0.85, 1.0);
+    // Car park across the shop's front row: kerb, asphalt, and painted bays between driveways.
+    let front = (o.1 + d.size.1) as f32;
+    let (lx0, lx1) = (o.0 as f32 + 0.04, (o.0 + d.size.0) as f32 - 0.04);
+    mb.rect_y(lx0, front - 0.06, lx1, front + 0.92, y + 0.006, CURB);
+    mb.rect_y(lx0 + 0.06, front, lx1 - 0.06, front + 0.86, y + 0.012, ASPHALT);
+    for k in 0..d.size.0 {
+        let tx = (o.0 + k) as f32;
+        if d.doors.iter().any(|p| p.0 == o.0 + k) {
+            continue;
+        }
+        // Three bays per car-park tile, nose-in toward the shop.
+        for b in 0..=3 {
+            let bx = tx + 0.08 + b as f32 * 0.28;
+            mb.rect_y(bx - 0.012, front + 0.04, bx + 0.012, front + 0.42, y + 0.016, MARKING);
+        }
+        // A couple of parked cars in the shop's colour, varied per tile.
+        for b in 0..3 {
+            if hash(o.0 + k, o.1 + b, 91) < 0.45 {
+                let cx = tx + 0.22 + b as f32 * 0.28;
+                let base = vec3(cx, y + 0.012, front + 0.23);
+                mb.boxx(base + Vec3::Y * 0.07, vec3(0.17, 0.1, 0.3), vec2(0.0, 1.0), lighter(col, 0.15));
+                mb.boxx(base + Vec3::Y * 0.15 + vec3(0.0, 0.0, 0.02), vec3(0.14, 0.06, 0.16), vec2(0.0, 1.0), Color::new(0.3, 0.35, 0.42, 1.0));
+            }
+        }
+    }
     // Body and flat roof with a parapet
     mb.abox(vec3(x0, y, z0), vec3(x1, y + h, z1), lighter(col, 0.55));
     mb.abox(vec3(x0 - 0.04, y + h, z0 - 0.04), vec3(x1 + 0.04, y + h + 0.08, z1 + 0.04), darker(col, 0.8));
@@ -971,6 +1082,7 @@ fn world_key(s: &Sim) -> u64 {
             Cell::Home(i) => 2 + 8 * *i as u64,
             Cell::Dest(i) => 3 + 8 * *i as u64,
             Cell::Door(i) => 4 + 8 * *i as u64,
+            Cell::Park(i) => 5 + 8 * *i as u64,
         }
         .hash(&mut h);
     }

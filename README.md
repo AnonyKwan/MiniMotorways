@@ -21,6 +21,8 @@ At the end of each week the game pauses and offers two of these:
 - **Highway**: a fast elevated link between two points up to 14 tiles apart, over anything.
 - **Road tiles**: 20 more road tiles.
 
+Shops have a car park along their front. A big shop has two driveways, and cars may drive through its car park from one to the other as a short cut.
+
 ## Play
 
 The `main` branch is published to GitHub Pages by `.github/workflows/pages.yml`. To play locally:
@@ -59,4 +61,4 @@ You can also run it as a desktop window with `cargo run --release`.
 
 ## Look
 
-The world is rendered in 3D with a gently tilted camera; on tall phone screens the board turns so its long side runs up the screen. Static scenery is built once and reused, and cars are blended between simulation steps, so play stays smooth. Every model (terrain, houses, shops, trees, cars) is a flat-shaded low-poly mesh generated in code, so the game ships no model or texture files. Text uses the bundled Inter font (SIL Open Font License, see `assets/Inter-LICENSE.txt`).
+The world is rendered in 3D with a gently tilted camera; on tall phone screens the board turns so its long side runs up the screen. Static scenery is built once and reused, and cars are blended between simulation steps, so play stays smooth. Countryside, rivers and groves carry on past the edge of the play area, so the game fills the whole screen. Every model (terrain, houses, shops, trees, cars) is a flat-shaded low-poly mesh generated in code, so the game ships no model or texture files. Text uses the bundled Inter font (SIL Open Font License, see `assets/Inter-LICENSE.txt`).

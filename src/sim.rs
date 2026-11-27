@@ -30,6 +30,9 @@ pub enum Cell {
     Home(usize),
     Dest(usize),
     Door(usize),
+    /// Car park in front of a shop, between or beside its driveways. On a big shop cars can
+    /// drive through it from one driveway to the other.
+    Park(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -540,7 +543,8 @@ impl Sim {
         } else {
             vec![(origin.0 + 1, front)]
         };
-        if !self.footprint_free(origin, size, &doors) {
+        let lot: Vec<Pos> = (origin.0..origin.0 + size.0).map(|x| (x, front)).collect();
+        if !self.footprint_free(origin, size, &lot) {
             return None;
         }
         let id = self.dests.len();
@@ -549,8 +553,8 @@ impl Sim {
                 self.cells[idx((x, y))] = Cell::Dest(id);
             }
         }
-        for d in &doors {
-            self.cells[idx(*d)] = Cell::Door(id);
+        for p in &lot {
+            self.cells[idx(*p)] = if doors.contains(p) { Cell::Door(id) } else { Cell::Park(id) };
         }
         self.dests.push(Dest {
             born: self.time,
@@ -750,9 +754,21 @@ impl Sim {
     fn link_ok(&self, a: Pos, b: Pos) -> bool {
         let ok = |h: Pos, other: Pos| match self.cells[idx(h)] {
             Cell::Home(id) => self.driveway(id) == other,
+            // A car park only joins its own shop's car park and driveways.
+            Cell::Park(id) => matches!(self.cells[idx(other)], Cell::Park(j) | Cell::Door(j) if j == id),
             _ => true,
         };
         ok(a, b) && ok(b, a)
+    }
+
+    /// Tiles a car may drive across on its way somewhere else: roads, and the car park and
+    /// driveways of a big shop (which link its two driveways).
+    pub fn passable(&self, p: Pos) -> bool {
+        match self.cells[idx(p)] {
+            Cell::Road => true,
+            Cell::Park(d) | Cell::Door(d) => self.dests[d].big(),
+            _ => false,
+        }
     }
 
     // ----- Pathfinding -------------------------------------------------
@@ -782,7 +798,7 @@ impl Sim {
                 path.reverse();
                 return Some(path);
             }
-            if p != start && self.cells[i] != Cell::Road {
+            if p != start && !self.passable(p) {
                 continue;
             }
             let mut nbrs: Vec<(Pos, u32)> = DIRS.iter().map(|dd| ((p.0 + dd.0, p.1 + dd.1), 10)).collect();
@@ -799,7 +815,7 @@ impl Sim {
                     continue;
                 }
                 let qi = idx(q);
-                let enterable = self.cells[qi] == Cell::Road || is_goal(q);
+                let enterable = self.passable(q) || is_goal(q);
                 if !enterable || !self.link_ok(p, q) {
                     continue;
                 }
@@ -1302,6 +1318,42 @@ mod tests {
         s.dests[d].pins = 2;
         run(&mut s, 10.0);
         assert!(s.score >= 2, "score was {}", s.score);
+    }
+
+    #[test]
+    fn shops_have_a_car_park_and_big_ones_can_be_driven_through() {
+        let mut s = Sim::empty(8);
+        let small = s.add_dest((3, 3), 1).unwrap();
+        assert_eq!(s.cell((3, 5)), Cell::Park(small));
+        assert_eq!(s.cell((4, 5)), Cell::Door(small));
+        assert_eq!(s.cell((5, 5)), Cell::Park(small));
+        let big = s.add_big_dest((10, 5), 2).unwrap();
+        assert_eq!(s.cell((11, 7)), Cell::Park(big));
+        // A teal home east of the big shop; its own shop lies west, reachable only by
+        // driving in one driveway, across the car park and out the other.
+        s.add_home((16, 7), 0);
+        s.place_road((14, 7));
+        s.place_road((15, 7));
+        let target = s.add_dest((3, 9), 0).unwrap();
+        for x in 7..=9 {
+            s.place_road((x, 7));
+        }
+        for y in 8..=12 {
+            s.place_road((7, y));
+        }
+        for x in 4..=6 {
+            s.place_road((x, 12));
+        }
+        assert_eq!(s.cell((4, 11)), Cell::Door(target));
+        // A road beside the car park doesn't connect into it except at a driveway.
+        s.place_road((11, 8));
+        let path = s.find_path((16, 7), &|p| p == (4, 11)).expect("route through the car park");
+        assert!(path.contains(&(12, 7)) && path.contains(&(11, 7)), "{:?}", path);
+        assert!(!path.contains(&(11, 8)));
+        s.dests[target].pins = 2;
+        s.dests[big].pins = 0;
+        run(&mut s, 20.0);
+        assert!(s.score >= 1, "score was {}", s.score);
     }
 
     #[test]

@@ -1,13 +1,11 @@
-use little_lanes::map::{idx, in_bounds, Pos, Terrain, DIRS, H, W};
-use little_lanes::sim::{Cell, CarState, EditResult, Sim, DEST_H, DEST_W, DT, PIN_LIMIT};
+use little_lanes::map::{in_bounds, Pos, H, W};
+use little_lanes::sim::{Cell, EditResult, Sim, DT};
 use macroquad::prelude::*;
+
+mod art;
 
 const HUD_H: f32 = 48.0;
 
-const BG: Color = Color::new(0.953, 0.937, 0.902, 1.0);
-const WATER: Color = Color::new(0.663, 0.827, 0.910, 1.0);
-const HILL: Color = Color::new(0.851, 0.796, 0.690, 1.0);
-const ROAD: Color = Color::new(0.47, 0.47, 0.52, 1.0);
 const INK: Color = Color::new(0.20, 0.20, 0.24, 1.0);
 const WARN: Color = Color::new(0.85, 0.25, 0.22, 1.0);
 
@@ -90,6 +88,10 @@ fn window_conf() -> Conf {
 }
 
 fn seed() -> u64 {
+    // A fixed seed can be baked in for testing: LL_SEED=42 ./build_web.sh
+    if let Some(s) = option_env!("LL_SEED").and_then(|s| s.parse().ok()) {
+        return s;
+    }
     (macroquad::miniquad::date::now() * 1000.0) as u64
 }
 
@@ -211,8 +213,9 @@ async fn main() {
         }
 
         // ---- Drawing -------------------------------------------------
-        clear_background(BG);
-        draw_world(&g, &view);
+        clear_background(art::BACKDROP);
+        art::draw_world(&g.sim, &view, get_time() as f32);
+        draw_flash(&g, &view);
         if !over_ui && !g.sim.game_over {
             if let Some(t) = view.tile_at(mx, my) {
                 let p = view.pt(t.0 as f32, t.1 as f32);
@@ -229,131 +232,10 @@ async fn main() {
     }
 }
 
-fn draw_world(g: &Game, v: &View) {
-    let s = &g.sim;
-    let ts = v.ts;
-
-    // Terrain
-    for y in 0..H {
-        for x in 0..W {
-            let p = v.pt(x as f32, y as f32);
-            match s.terrain[idx((x, y))] {
-                Terrain::Water => draw_rectangle(p.x, p.y, ts + 0.5, ts + 0.5, WATER),
-                Terrain::Hill => {
-                    draw_rectangle(p.x, p.y, ts + 0.5, ts + 0.5, HILL);
-                    draw_circle(p.x + ts * 0.5, p.y + ts * 0.5, ts * 0.08, darker(HILL, 0.85));
-                }
-                Terrain::Grass => {}
-            }
-        }
-    }
-    // Faint grid
-    let grid = Color::new(0.0, 0.0, 0.0, 0.035);
-    for x in 0..=W {
-        let a = v.pt(x as f32, 0.0);
-        draw_line(a.x, a.y, a.x, a.y + ts * H as f32, 1.0, grid);
-    }
-    for y in 0..=H {
-        let a = v.pt(0.0, y as f32);
-        draw_line(a.x, a.y, a.x + ts * W as f32, a.y, 1.0, grid);
-    }
-
-    // Roads: a disc per tile plus a bar to each connected neighbour.
-    let rw = ts * 0.56;
-    for y in 0..H {
-        for x in 0..W {
-            let c = s.cells[idx((x, y))];
-            let is_link = matches!(c, Cell::Road | Cell::Door(_));
-            if !is_link {
-                continue;
-            }
-            let ctr = v.pt(x as f32 + 0.5, y as f32 + 0.5);
-            let col = match c {
-                Cell::Door(d) => darker(PALETTE[s.dests[d].color], 0.8),
-                _ => ROAD,
-            };
-            draw_circle(ctr.x, ctr.y, rw * 0.5, col);
-            for d in DIRS {
-                let n = (x + d.0, y + d.1);
-                let connects = match s.cell(n) {
-                    Cell::Road => true,
-                    Cell::Home(_) => c == Cell::Road,
-                    Cell::Door(_) => c == Cell::Road,
-                    Cell::Dest(id) => matches!(c, Cell::Door(did) if did == id),
-                    Cell::Empty => false,
-                };
-                if connects {
-                    let e = v.pt(x as f32 + 0.5 + d.0 as f32 * 0.5, y as f32 + 0.5 + d.1 as f32 * 0.5);
-                    draw_line(ctr.x, ctr.y, e.x, e.y, rw, if matches!(s.cell(n), Cell::Dest(_)) { col } else { ROAD });
-                }
-            }
-        }
-    }
-
-    // Destinations
-    for (i, d) in s.dests.iter().enumerate() {
-        let col = PALETTE[d.color];
-        let p = v.pt(d.origin.0 as f32 + 0.08, d.origin.1 as f32 + 0.08);
-        let (w, h) = (ts * (DEST_W as f32 - 0.16), ts * (DEST_H as f32 - 0.16));
-        draw_rectangle(p.x, p.y, w, h, col);
-        draw_rectangle_lines(p.x, p.y, w, h, 2.0, darker(col, 0.75));
-        // Pins: white dots, hollow once a car is on its way.
-        let r = ts * 0.13;
-        for k in 0..d.pins.min(12) {
-            let (cx, cy) = (k % 6, k / 6);
-            let px = p.x + ts * 0.3 + cx as f32 * ts * 0.45;
-            let py = p.y + ts * 0.42 + cy as f32 * ts * 0.6;
-            if k < d.assigned {
-                draw_circle_lines(px, py, r, 2.0, WHITE);
-            } else {
-                draw_circle(px, py, r, WHITE);
-            }
-        }
-        if d.overflow > 0.0 || d.pins > PIN_LIMIT {
-            let c = v.pt(d.origin.0 as f32 + DEST_W as f32 / 2.0, d.origin.1 as f32 + DEST_H as f32 / 2.0);
-            let rad = ts * 2.1;
-            draw_circle_lines(c.x, c.y, rad, 3.0, Color::new(WARN.r, WARN.g, WARN.b, 0.2));
-            let pulse = if g.sim.failed_dest == Some(i) { 1.0 } else { 0.75 + 0.25 * (get_time() as f32 * 6.0).sin() };
-            draw_arc(c.x, c.y, 48, rad, -90.0, 4.0, 360.0 * d.overflow.min(1.0), Color::new(WARN.r, WARN.g, WARN.b, pulse));
-        }
-    }
-
-    // Homes
-    for (i, h) in s.homes.iter().enumerate() {
-        let col = PALETTE[h.color];
-        let p = v.pt(h.pos.0 as f32 + 0.15, h.pos.1 as f32 + 0.15);
-        draw_rectangle(p.x, p.y, ts * 0.7, ts * 0.7, col);
-        draw_rectangle_lines(p.x, p.y, ts * 0.7, ts * 0.7, 2.0, darker(col, 0.75));
-        if s.cars[i].state == CarState::Idle {
-            draw_circle(p.x + ts * 0.35, p.y + ts * 0.35, ts * 0.12, WHITE);
-        }
-    }
-
-    // Cars, driving on the right-hand side of the road.
-    for (i, c) in s.cars.iter().enumerate() {
-        if c.state == CarState::Idle {
-            continue;
-        }
-        let col = darker(PALETTE[s.homes[i].color], 0.9);
-        let (ax, ay) = (c.prev.0 as f32, c.prev.1 as f32);
-        let (bx, by) = (c.cur.0 as f32, c.cur.1 as f32);
-        let t = c.progress;
-        let (x, y) = (ax + (bx - ax) * t, ay + (by - ay) * t);
-        let mut dir = vec2(bx - ax, by - ay);
-        if dir.length_squared() < 0.01 {
-            dir = c.path.get(c.i + 1).map(|n| vec2((n.0 - c.cur.0) as f32, (n.1 - c.cur.1) as f32)).unwrap_or(vec2(1.0, 0.0));
-        }
-        let normal = vec2(-dir.y, dir.x) * 0.14;
-        let ctr = v.pt(x + 0.5 + normal.x, y + 0.5 + normal.y);
-        let (len, wid) = (ts * 0.42, ts * 0.24);
-        let horizontal = dir.x.abs() > dir.y.abs();
-        let (w, h) = if horizontal { (len, wid) } else { (wid, len) };
-        draw_rectangle(ctr.x - w / 2.0, ctr.y - h / 2.0, w, h, col);
-    }
-
+fn draw_flash(g: &Game, v: &View) {
     if let Some((p, t)) = g.flash {
         let q = v.pt(p.0 as f32, p.1 as f32);
-        draw_rectangle(q.x, q.y, ts, ts, Color::new(WARN.r, WARN.g, WARN.b, t));
+        draw_rectangle(q.x, q.y, v.ts, v.ts, Color::new(WARN.r, WARN.g, WARN.b, t));
     }
 }
 
@@ -371,16 +253,46 @@ fn hud_buttons() -> Vec<Button> {
     out
 }
 
+/// Filled rounded rectangle in screen pixels.
+fn pill(x: f32, y: f32, w: f32, h: f32, c: Color) {
+    let r = (h / 2.0).min(w / 2.0);
+    draw_rectangle(x + r, y, w - 2.0 * r, h, c);
+    draw_circle(x + r, y + r, r, c);
+    draw_circle(x + w - r, y + r, r, c);
+}
+
 fn draw_hud(g: &Game, buttons: &[Button]) {
     let s = &g.sim;
-    draw_rectangle(0.0, 0.0, screen_width(), HUD_H, Color::new(1.0, 1.0, 1.0, 0.85));
-    draw_line(0.0, HUD_H, screen_width(), HUD_H, 1.0, Color::new(0.0, 0.0, 0.0, 0.08));
-    let text = format!("Trips {}    Week {}    Roads {}", s.score, s.week, s.roads_left);
-    draw_text(&text, 16.0, 31.0, 26.0, INK);
-    // Week progress bar
-    let bx = 16.0 + measure_text(&text, None, 26, 1.0).width + 16.0;
-    draw_rectangle(bx, 21.0, 80.0, 6.0, Color::new(0.0, 0.0, 0.0, 0.08));
-    draw_rectangle(bx, 21.0, 80.0 * s.week_progress(), 6.0, INK);
+    draw_rectangle(0.0, 0.0, screen_width(), HUD_H, Color::new(0.98, 0.97, 0.94, 1.0));
+    draw_rectangle(0.0, HUD_H - 3.0, screen_width(), 3.0, Color::new(0.0, 0.0, 0.0, 0.08));
+
+    let chip_bg = Color::new(0.0, 0.0, 0.0, 0.06);
+    let mut x = 12.0;
+    // Trips: a little car icon
+    let label = format!("{}", s.score);
+    let w = 54.0 + measure_text(&label, None, 24, 1.0).width;
+    pill(x, 8.0, w, 30.0, chip_bg);
+    pill(x + 10.0, 16.0, 26.0, 14.0, PALETTE[0]);
+    draw_rectangle(x + 18.0, 18.0, 10.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.7));
+    draw_text(&label, x + 44.0, 31.0, 24.0, INK);
+    x += w + 10.0;
+    // Week with progress ring
+    let label = format!("Week {}", s.week);
+    let w = 50.0 + measure_text(&label, None, 24, 1.0).width;
+    pill(x, 8.0, w, 30.0, chip_bg);
+    draw_circle_lines(x + 22.0, 23.0, 9.0, 3.0, Color::new(0.0, 0.0, 0.0, 0.12));
+    draw_arc(x + 22.0, 23.0, 32, 7.5, -90.0, 3.0, 360.0 * s.week_progress(), INK);
+    draw_text(&label, x + 40.0, 31.0, 24.0, INK);
+    x += w + 10.0;
+    // Road tiles left: a road icon
+    let label = format!("{}", s.roads_left);
+    let w = 54.0 + measure_text(&label, None, 24, 1.0).width;
+    let low = s.roads_left < 5;
+    pill(x, 8.0, w, 30.0, if low { Color::new(WARN.r, WARN.g, WARN.b, 0.18) } else { chip_bg });
+    draw_rectangle(x + 10.0, 16.0, 26.0, 14.0, Color::new(0.33, 0.35, 0.4, 1.0));
+    draw_rectangle(x + 13.0, 22.0, 6.0, 2.0, WHITE);
+    draw_rectangle(x + 27.0, 22.0, 6.0, 2.0, WHITE);
+    draw_text(&label, x + 44.0, 31.0, 24.0, if low { WARN } else { INK });
 
     for (i, b) in buttons.iter().enumerate() {
         let active = match i {
@@ -389,9 +301,9 @@ fn draw_hud(g: &Game, buttons: &[Button]) {
             2 => g.speed == 2,
             _ => g.tool == Tool::Erase,
         };
-        let fill = if active { if i == 3 { WARN } else { INK } } else { Color::new(0.0, 0.0, 0.0, 0.06) };
+        let fill = if active { if i == 3 { WARN } else { INK } } else { chip_bg };
         let tc = if active { WHITE } else { INK };
-        draw_rectangle(b.rect.x, b.rect.y, b.rect.w, b.rect.h, fill);
+        pill(b.rect.x, b.rect.y, b.rect.w, b.rect.h, fill);
         let m = measure_text(b.label, None, 22, 1.0);
         draw_text(b.label, b.rect.x + (b.rect.w - m.width) / 2.0, b.rect.y + 22.0, 22.0, tc);
     }
@@ -400,7 +312,7 @@ fn draw_hud(g: &Game, buttons: &[Button]) {
         let a = t.min(1.0);
         let m = measure_text(msg, None, 24, 1.0);
         let (x, y) = ((screen_width() - m.width) / 2.0, screen_height() - 28.0);
-        draw_rectangle(x - 14.0, y - 26.0, m.width + 28.0, 38.0, Color::new(INK.r, INK.g, INK.b, 0.85 * a));
+        pill(x - 20.0, y - 26.0, m.width + 40.0, 38.0, Color::new(INK.r, INK.g, INK.b, 0.88 * a));
         draw_text(msg, x, y, 24.0, Color::new(1.0, 1.0, 1.0, a));
     }
 }
@@ -412,8 +324,8 @@ fn restart_rect() -> Rect {
 fn draw_game_over(g: &Game) {
     draw_rectangle(0.0, 0.0, screen_width(), screen_height(), Color::new(0.95, 0.94, 0.9, 0.6));
     let (cx, cy) = (screen_width() / 2.0, screen_height() / 2.0);
-    draw_rectangle(cx - 200.0, cy - 110.0, 400.0, 200.0, WHITE);
-    draw_rectangle_lines(cx - 200.0, cy - 110.0, 400.0, 200.0, 2.0, INK);
+    draw_rectangle(cx - 194.0, cy - 102.0, 400.0, 200.0, Color::new(0.0, 0.0, 0.0, 0.15));
+    draw_rectangle(cx - 200.0, cy - 110.0, 400.0, 200.0, Color::new(0.98, 0.97, 0.94, 1.0));
     let summary = format!("{} trips in {} weeks", g.sim.score, g.sim.week);
     let lines = [("Traffic jam!", 40.0, -55.0), (summary.as_str(), 26.0, -12.0)];
     for (t, size, dy) in lines {
@@ -421,7 +333,7 @@ fn draw_game_over(g: &Game) {
         draw_text(t, cx - m.width / 2.0, cy + dy, size, INK);
     }
     let r = restart_rect();
-    draw_rectangle(r.x, r.y, r.w, r.h, INK);
+    pill(r.x, r.y, r.w, r.h, INK);
     let m = measure_text("Play again", None, 24, 1.0);
     draw_text("Play again", r.x + (r.w - m.width) / 2.0, r.y + 29.0, 24.0, WHITE);
 }

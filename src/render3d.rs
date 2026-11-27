@@ -1018,7 +1018,9 @@ fn draw_shop_local(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     let door_us: Vec<i32> = d.doors.iter().map(|p| (0..w).find(|&u| d.tile(u, 1) == *p).unwrap_or(0)).collect();
     let (x0, z0) = (0.1, 0.08);
     let (x1, z1) = (w as f32 - 0.1, 2.0 - 0.22);
-    let y = lift;
+    // The car park and driveways are on the ground from the start, matching the driveway
+    // road tiles; only the building drops in.
+    let y = 0.0;
     let h = 0.72;
     let grey = Color::new(0.82, 0.83, 0.85, 1.0);
     // Car park across the shop's front row: kerb, asphalt, and painted bays between driveways.
@@ -1051,8 +1053,12 @@ fn draw_shop_local(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     let (cw, aw) = (0.38, 0.31);
     for u in &door_us {
         let dx = *u as f32 + 0.5;
-        mb.rect_y(dx - cw, lot_end - 0.04, dx + cw, front + 1.0, y + 0.007, CURB);
-        mb.rect_y(dx - aw, lot_end - 0.02, dx + aw, front + 1.0, y + 0.013, ASPHALT);
+        // The shop draws its own driveway stub out to the middle of the driveway tile, so it
+        // always shows even before any road joins it; the road layer adds the side arms.
+        mb.rect_y(dx - cw, lot_end - 0.04, dx + cw, front + 1.5, y + 0.007, CURB);
+        mb.rect_y(dx - aw, lot_end - 0.02, dx + aw, front + 1.5, y + 0.013, ASPHALT);
+        mb.disk(vec3(dx, y + 0.007, front + 1.5), cw, 16, CURB);
+        mb.disk(vec3(dx, y + 0.013, front + 1.5), aw, 16, ASPHALT);
         let tip = vec3(dx, y + 0.018, front + 0.58);
         mb.flat(&[tip, vec3(dx + 0.12, y + 0.018, front + 0.74), vec3(dx - 0.12, y + 0.018, front + 0.74)], MARKING);
         mb.rect_y(dx - 0.035, front + 0.72, dx + 0.035, front + 0.9, y + 0.018, MARKING);
@@ -1085,7 +1091,7 @@ fn draw_shop_local(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
         } else {
             (x0, x1)
         };
-        draw_shop_unit(mb, ux0, ux1, z0, z1, y, h, *u as f32 + 0.5, col, grey);
+        draw_shop_unit(mb, ux0, ux1, z0, z1, lift, h, *u as f32 + 0.5, col, grey);
     }
 }
 

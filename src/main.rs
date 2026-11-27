@@ -773,7 +773,9 @@ async fn main() {
             let facing = g.sim.dests.len() % 4;
             'find: for r in 4..14 {
                 for (dx, dy) in [(r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, r), (r, -r), (-r, -r)] {
-                    if g.sim.add_dest_facing((o.0 + dx, o.1 + dy), facing, 1, true).is_some() {
+                    if let Some(id) = g.sim.add_dest_facing((o.0 + dx, o.1 + dy), facing, 1, true) {
+                        // Already landed, so it looks right even while paused.
+                        g.sim.dests[id].born -= 1.0;
                         break 'find;
                     }
                 }

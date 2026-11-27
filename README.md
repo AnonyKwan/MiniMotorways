@@ -27,5 +27,10 @@ You can also run it as a desktop window with `cargo run --release`.
 
 - `src/sim.rs` — game rules: roads, homes, destinations, cars, pathfinding, spawning, overflow. No rendering, fully unit tested (`cargo test --lib`).
 - `src/map.rs` — grid size and terrain generation.
-- `src/main.rs` — drawing, input and the HUD.
+- `src/render3d.rs` — the 3D camera, mesh building and all world artwork.
+- `src/main.rs` — input, the HUD and the game loop.
 - `web/` — the HTML page and miniquad's `gl.js` loader.
+
+## Look
+
+The world is rendered in 3D with a tilted perspective camera. Every model (terrain, houses, shops, trees, cars) is a flat-shaded low-poly mesh generated in code, so the game ships no model or texture files. Text uses the bundled Inter font (SIL Open Font License, see `assets/Inter-LICENSE.txt`).

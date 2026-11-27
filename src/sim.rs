@@ -35,6 +35,8 @@ pub enum Cell {
 pub struct Home {
     pub pos: Pos,
     pub color: usize,
+    /// Sim time when it appeared, for the arrival animation.
+    pub born: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -42,6 +44,8 @@ pub struct Dest {
     /// Top-left tile of the footprint.
     pub origin: Pos,
     pub door: Pos,
+    /// Sim time when it appeared, for the arrival animation.
+    pub born: f32,
     pub color: usize,
     /// Trips wanted, including ones a car is already on its way to serve.
     pub pins: u32,
@@ -248,6 +252,7 @@ impl Sim {
         }
         self.cells[idx(door)] = Cell::Door(id);
         self.dests.push(Dest {
+            born: self.time,
             origin,
             door,
             color,
@@ -348,7 +353,7 @@ impl Sim {
         let p = options[self.rng.below(options.len())];
         let id = self.homes.len();
         self.cells[idx(p)] = Cell::Home(id);
-        self.homes.push(Home { pos: p, color });
+        self.homes.push(Home { pos: p, color, born: self.time });
         self.cars.push(Car {
             state: CarState::Idle,
             path: vec![p],
@@ -366,7 +371,7 @@ impl Sim {
     pub fn add_home(&mut self, p: Pos, color: usize) -> usize {
         let id = self.homes.len();
         self.cells[idx(p)] = Cell::Home(id);
-        self.homes.push(Home { pos: p, color });
+        self.homes.push(Home { pos: p, color, born: self.time });
         self.cars.push(Car {
             state: CarState::Idle,
             path: vec![p],

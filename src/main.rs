@@ -1,8 +1,10 @@
-use little_lanes::map::{in_bounds, Pos, H, W};
+use little_lanes::map::Pos;
 use little_lanes::sim::{Cell, EditResult, Sim, DT};
 use macroquad::prelude::*;
 
-mod art;
+mod render3d;
+
+use std::cell::RefCell;
 
 const HUD_H: f32 = 48.0;
 
@@ -18,8 +20,20 @@ const PALETTE: [Color; 6] = [
     Color::new(0.910, 0.561, 0.706, 1.0), // pink
 ];
 
-fn darker(c: Color, f: f32) -> Color {
-    Color::new(c.r * f, c.g * f, c.b * f, c.a)
+thread_local! {
+    static FONT: RefCell<Option<Font>> = const { RefCell::new(None) };
+}
+
+/// Draw text with the bundled Inter font (falls back to the built-in font if it failed to load).
+fn text(t: &str, x: f32, y: f32, size: f32, color: Color) {
+    FONT.with(|f| {
+        let f = f.borrow();
+        draw_text_ex(t, x, y, TextParams { font: f.as_ref(), font_size: size as u16, color, ..Default::default() });
+    });
+}
+
+fn measure(t: &str, size: f32) -> TextDimensions {
+    FONT.with(|f| measure_text(t, f.borrow().as_ref(), size as u16, 1.0))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -31,29 +45,6 @@ enum Tool {
 struct Button {
     rect: Rect,
     label: &'static str,
-}
-
-struct View {
-    ts: f32,
-    ox: f32,
-    oy: f32,
-}
-
-impl View {
-    fn compute() -> Self {
-        let ts = (screen_width() / W as f32).min((screen_height() - HUD_H) / H as f32).floor().max(4.0);
-        let ox = ((screen_width() - ts * W as f32) / 2.0).floor();
-        let oy = HUD_H + ((screen_height() - HUD_H - ts * H as f32) / 2.0).floor();
-        View { ts, ox, oy }
-    }
-    fn tile_at(&self, x: f32, y: f32) -> Option<Pos> {
-        let p = (((x - self.ox) / self.ts).floor() as i32, ((y - self.oy) / self.ts).floor() as i32);
-        in_bounds(p).then_some(p)
-    }
-    /// Screen position of a point given in tile units (tile centre = x + 0.5).
-    fn pt(&self, x: f32, y: f32) -> Vec2 {
-        vec2(self.ox + x * self.ts, self.oy + y * self.ts)
-    }
 }
 
 /// Tiles on a 4-connected line from a to b, so fast drags still make joined roads.
@@ -121,10 +112,24 @@ impl Game {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    if let Ok(f) = load_ttf_font_from_bytes(include_bytes!("../assets/Inter-SemiBold.otf")) {
+        FONT.with(|cell| *cell.borrow_mut() = Some(f));
+    }
     let mut g = Game::new();
 
     loop {
-        let view = View::compute();
+        let scene = render3d::Scene::new(HUD_H);
+        // Test builds print where each tile appears on screen so automated tests can click tiles.
+        if option_env!("LL_SEED").is_some() && is_key_pressed(KeyCode::F9) {
+            let mut out = String::new();
+            for y in 0..little_lanes::map::H {
+                for x in 0..little_lanes::map::W {
+                    let p = scene.to_screen(vec3(x as f32 + 0.5, 0.0, y as f32 + 0.5));
+                    out.push_str(&format!("{},{},{:.1},{:.1};", x, y, p.x, p.y));
+                }
+            }
+            macroquad::miniquad::info!("TILES {}", out);
+        }
         let buttons = hud_buttons();
         let (mx, my) = mouse_position();
 
@@ -176,7 +181,7 @@ async fn main() {
             g.drag_erase = pressed_r || g.tool == Tool::Erase;
         }
         if (down_l || down_r) && !over_ui {
-            if let Some(t) = view.tile_at(mx, my) {
+            if let Some(t) = scene.pick(mx, my) {
                 let tiles = match g.last_tile {
                     Some(l) if l != t => tiles_between(l, t),
                     Some(_) => vec![],
@@ -213,29 +218,22 @@ async fn main() {
         }
 
         // ---- Drawing -------------------------------------------------
-        clear_background(art::BACKDROP);
-        art::draw_world(&g.sim, &view, get_time() as f32);
-        draw_flash(&g, &view);
-        if !over_ui && !g.sim.game_over {
-            if let Some(t) = view.tile_at(mx, my) {
-                let p = view.pt(t.0 as f32, t.1 as f32);
-                let c = if g.tool == Tool::Erase || down_r { WARN } else { INK };
-                draw_rectangle_lines(p.x, p.y, view.ts, view.ts, 2.0, Color::new(c.r, c.g, c.b, 0.5));
-            }
-        }
+        clear_background(render3d::SKY);
+        let hover = if !over_ui && !g.sim.game_over { scene.pick(mx, my) } else { None };
+        set_camera(&scene.cam);
+        render3d::draw_world(
+            &g.sim,
+            get_time() as f32,
+            &render3d::Highlight { tile: hover, erase: g.tool == Tool::Erase || down_r, flash: g.flash },
+        );
+        set_default_camera();
+        render3d::draw_overlays(&g.sim, &scene, get_time() as f32);
         draw_hud(&g, &buttons);
         if g.sim.game_over {
             draw_game_over(&g);
         }
 
         next_frame().await
-    }
-}
-
-fn draw_flash(g: &Game, v: &View) {
-    if let Some((p, t)) = g.flash {
-        let q = v.pt(p.0 as f32, p.1 as f32);
-        draw_rectangle(q.x, q.y, v.ts, v.ts, Color::new(WARN.r, WARN.g, WARN.b, t));
     }
 }
 
@@ -270,29 +268,29 @@ fn draw_hud(g: &Game, buttons: &[Button]) {
     let mut x = 12.0;
     // Trips: a little car icon
     let label = format!("{}", s.score);
-    let w = 54.0 + measure_text(&label, None, 24, 1.0).width;
+    let w = 54.0 + measure(&label, 24.0).width;
     pill(x, 8.0, w, 30.0, chip_bg);
     pill(x + 10.0, 16.0, 26.0, 14.0, PALETTE[0]);
     draw_rectangle(x + 18.0, 18.0, 10.0, 10.0, Color::new(1.0, 1.0, 1.0, 0.7));
-    draw_text(&label, x + 44.0, 31.0, 24.0, INK);
+    text(&label, x + 44.0, 31.0, 24.0, INK);
     x += w + 10.0;
     // Week with progress ring
     let label = format!("Week {}", s.week);
-    let w = 50.0 + measure_text(&label, None, 24, 1.0).width;
+    let w = 50.0 + measure(&label, 24.0).width;
     pill(x, 8.0, w, 30.0, chip_bg);
     draw_circle_lines(x + 22.0, 23.0, 9.0, 3.0, Color::new(0.0, 0.0, 0.0, 0.12));
     draw_arc(x + 22.0, 23.0, 32, 7.5, -90.0, 3.0, 360.0 * s.week_progress(), INK);
-    draw_text(&label, x + 40.0, 31.0, 24.0, INK);
+    text(&label, x + 40.0, 31.0, 24.0, INK);
     x += w + 10.0;
     // Road tiles left: a road icon
     let label = format!("{}", s.roads_left);
-    let w = 54.0 + measure_text(&label, None, 24, 1.0).width;
+    let w = 54.0 + measure(&label, 24.0).width;
     let low = s.roads_left < 5;
     pill(x, 8.0, w, 30.0, if low { Color::new(WARN.r, WARN.g, WARN.b, 0.18) } else { chip_bg });
     draw_rectangle(x + 10.0, 16.0, 26.0, 14.0, Color::new(0.33, 0.35, 0.4, 1.0));
     draw_rectangle(x + 13.0, 22.0, 6.0, 2.0, WHITE);
     draw_rectangle(x + 27.0, 22.0, 6.0, 2.0, WHITE);
-    draw_text(&label, x + 44.0, 31.0, 24.0, if low { WARN } else { INK });
+    text(&label, x + 44.0, 31.0, 24.0, if low { WARN } else { INK });
 
     for (i, b) in buttons.iter().enumerate() {
         let active = match i {
@@ -304,16 +302,16 @@ fn draw_hud(g: &Game, buttons: &[Button]) {
         let fill = if active { if i == 3 { WARN } else { INK } } else { chip_bg };
         let tc = if active { WHITE } else { INK };
         pill(b.rect.x, b.rect.y, b.rect.w, b.rect.h, fill);
-        let m = measure_text(b.label, None, 22, 1.0);
-        draw_text(b.label, b.rect.x + (b.rect.w - m.width) / 2.0, b.rect.y + 22.0, 22.0, tc);
+        let m = measure(b.label, 22.0);
+        text(b.label, b.rect.x + (b.rect.w - m.width) / 2.0, b.rect.y + 22.0, 22.0, tc);
     }
 
     if let Some((msg, t)) = &s.toast {
         let a = t.min(1.0);
-        let m = measure_text(msg, None, 24, 1.0);
+        let m = measure(msg, 24.0);
         let (x, y) = ((screen_width() - m.width) / 2.0, screen_height() - 28.0);
-        pill(x - 20.0, y - 26.0, m.width + 40.0, 38.0, Color::new(INK.r, INK.g, INK.b, 0.88 * a));
-        draw_text(msg, x, y, 24.0, Color::new(1.0, 1.0, 1.0, a));
+        pill(x - 20.0, y - 26.0, m.width + 40.0, 38.0, Color::new(INK.r + (0.84 - INK.r) * (1.0 - a), INK.g + (0.91 - INK.g) * (1.0 - a), INK.b + (0.92 - INK.b) * (1.0 - a), 1.0));
+        text(msg, x, y, 24.0, Color::new(1.0, 1.0, 1.0, a));
     }
 }
 
@@ -329,11 +327,11 @@ fn draw_game_over(g: &Game) {
     let summary = format!("{} trips in {} weeks", g.sim.score, g.sim.week);
     let lines = [("Traffic jam!", 40.0, -55.0), (summary.as_str(), 26.0, -12.0)];
     for (t, size, dy) in lines {
-        let m = measure_text(t, None, size as u16, 1.0);
-        draw_text(t, cx - m.width / 2.0, cy + dy, size, INK);
+        let m = measure(t, size);
+        text(t, cx - m.width / 2.0, cy + dy, size, INK);
     }
     let r = restart_rect();
     pill(r.x, r.y, r.w, r.h, INK);
-    let m = measure_text("Play again", None, 24, 1.0);
-    draw_text("Play again", r.x + (r.w - m.width) / 2.0, r.y + 29.0, 24.0, WHITE);
+    let m = measure("Play again", 24.0);
+    text("Play again", r.x + (r.w - m.width) / 2.0, r.y + 29.0, 24.0, WHITE);
 }

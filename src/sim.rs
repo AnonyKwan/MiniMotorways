@@ -273,6 +273,9 @@ pub const HIGHWAY_SPEED: f32 = 2.2;
 pub const LIGHT_PHASE: f32 = 3.0;
 /// All-red gap between phases, so the crossing clears before the other way goes.
 pub const LIGHT_CLEAR: f32 = 0.6;
+/// A car stuck this long at a plain crossing goes anyway, so loops of crossings can't
+/// lock up for good. Plain crossings stay slow; they just can't freeze the town.
+pub const JAM_BREAK: f32 = 4.0;
 
 /// Things that happened during a step, for sounds and effects.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -311,6 +314,8 @@ pub struct Car {
     pub slot: Option<usize>,
     /// Retry countdown when the car has no route.
     pub retry: f32,
+    /// Seconds spent waiting to enter a plain crossing.
+    pub wait: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -741,7 +746,15 @@ impl Sim {
 
     fn footprint_free(&self, origin: Pos, size: (i32, i32), doors: &[Pos]) -> bool {
         // The footprint, its driveways and a one-tile margin must be clear of buildings,
-        // and the footprint and driveways must sit on empty grass.
+        // and the footprint and driveways must sit on empty grass. The row in front of the
+        // car park must be open land or road, so a road can always reach the driveways.
+        let front = origin.1 + size.1 + 1;
+        for x in origin.0..origin.0 + size.0 {
+            let p = (x, front);
+            if !in_bounds(p) || !(self.cells[idx(p)] == Cell::Road || (self.cells[idx(p)] == Cell::Empty && self.terrain[idx(p)] == Terrain::Grass)) {
+                return false;
+            }
+        }
         for y in origin.1 - 1..=origin.1 + size.1 {
             for x in origin.0 - 1..=origin.0 + size.0 {
                 let p = (x, y);
@@ -929,8 +942,8 @@ impl Sim {
                 if self.cells[idx(p)] != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass || self.near_roundabout(p) {
                     continue;
                 }
-                // Never put a home where no road could reach its shop.
-                if cost[idx(p)] > budget {
+                // Never put a home where no road could reach its shop, or across a shop's entrance.
+                if cost[idx(p)] > budget || self.blocks_entrance(p) {
                     continue;
                 }
                 // Needs at least two open sides and no building directly next to it.
@@ -954,6 +967,24 @@ impl Sim {
         }
         let p = options[self.rng.below(options.len())];
         Some(self.add_home_facing(p, color, Some(door)))
+    }
+
+    /// Undo the most recent `place_dest` (used when no home can be placed for it).
+    fn remove_last_dest(&mut self) {
+        let Some(d) = self.dests.pop() else { return };
+        let id = self.dests.len();
+        for c in self.cells.iter_mut() {
+            if matches!(*c, Cell::Dest(i) | Cell::Door(i) | Cell::Park(i) if i == id) {
+                *c = Cell::Empty;
+            }
+        }
+        let _ = d;
+        self.roads_dirty = true;
+    }
+
+    /// Whether `p` is right in front of a shop's car park.
+    fn blocks_entrance(&self, p: Pos) -> bool {
+        matches!(self.cell((p.0, p.1 - 1)), Cell::Door(_) | Cell::Park(_))
     }
 
     /// Place a home directly, for tests and scripted setups.
@@ -994,6 +1025,7 @@ impl Sim {
             cur: p,
             slot: None,
             retry: 0.0,
+            wait: 0.0,
         });
         id
     }
@@ -1273,8 +1305,15 @@ impl Sim {
         if due {
             self.dest_timer -= dt;
             if self.dest_timer <= 0.0 {
-                if let Some(d) = self.spawn_random_dest() {
-                    self.spawn_home(d);
+                let placed = self.spawn_random_dest().filter(|d| {
+                    if self.spawn_home(*d).is_some() {
+                        return true;
+                    }
+                    // No room for a home that could reach it: take the shop back.
+                    self.remove_last_dest();
+                    false
+                });
+                if placed.is_some() {
                     self.toast = Some(("A new destination has opened".into(), 3.0));
                     self.events.push(Event::NewDest);
                     self.dest_timer = 8.0;
@@ -1289,6 +1328,11 @@ impl Sim {
         let interval = pin_interval(self.week) * self.map.difficulty();
         let rush = self.rush.filter(|r| r.active(self.time)).map(|r| r.color);
         for i in 0..self.dests.len() {
+            // A shop whose colour has no homes yet waits for one before asking for trips.
+            let color = self.dests[i].color;
+            if !self.homes.iter().any(|h| h.color == color) {
+                continue;
+            }
             let d = &mut self.dests[i];
             d.pin_timer -= dt;
             if d.pin_timer <= 0.0 {
@@ -1398,17 +1442,17 @@ impl Sim {
                         return; // queue behind the car ahead
                     }
                     if self.is_crossing(next) {
-                        let b = idx(next) * 4;
-                        let busy = self.occ[b..b + 4].iter().any(|o| *o);
                         let wait = match self.junctions[idx(next)] {
-                            Junction::Plain => busy,
+                            Junction::Plain => self.crossing_busy(c, next) && self.cars[c].wait < JAM_BREAK,
                             Junction::Roundabout => false,
                             Junction::Light => !self.light_green(next, dir),
                         };
                         if wait {
+                            self.cars[c].wait += dt;
                             return; // wait at the junction
                         }
                     }
+                    self.cars[c].wait = 0.0;
                     self.occ[s] = true;
                 }
                 let car = &mut self.cars[c];
@@ -1422,6 +1466,16 @@ impl Sim {
                 car.progress = 0.0;
             }
         }
+    }
+
+    /// Whether a plain crossing is taken by another car. A car that is only passing the other
+    /// way between this crossing and the one `c` is on doesn't count: they use opposite lanes,
+    /// and counting them let two neighbouring crossings block each other forever.
+    fn crossing_busy(&self, c: usize, next: Pos) -> bool {
+        let here = self.cars[c].cur;
+        self.cars.iter().enumerate().any(|(k, o)| {
+            k != c && o.slot.is_some() && o.cur == next && o.path.get(o.i + 1) != Some(&here)
+        })
     }
 
     fn arrive(&mut self, c: usize) {
@@ -1546,6 +1600,7 @@ mod tests {
     fn overflow_ends_the_game() {
         let mut s = Sim::empty(3);
         s.add_dest((10, 5), 0).unwrap();
+        s.add_home((25, 15), 0); // unconnected, so nobody serves the shop
         s.dests[0].pins = PIN_LIMIT + 3;
         run(&mut s, OVERFLOW_TIME + 2.0);
         assert!(s.game_over);
@@ -1755,9 +1810,18 @@ mod tests {
         let mut s = crossing();
         assert!(s.is_crossing((10, 10)));
         // A car already crossing eastbound blocks a northbound one.
-        s.occ[idx((10, 10)) * 4] = true;
         s.add_home((10, 12), 0);
         s.homes[0].facing = 3;
+        s.add_home((7, 10), 0);
+        let slot = idx((10, 10)) * 4;
+        s.occ[slot] = true;
+        let o = &mut s.cars[1];
+        o.state = CarState::ToHome;
+        o.path = vec![(9, 10), (10, 10), (11, 10)];
+        o.i = 1;
+        o.cur = (10, 10);
+        o.prev = (9, 10);
+        o.slot = Some(slot);
         let c = &mut s.cars[0];
         c.state = CarState::ToHome;
         c.path = vec![(10, 11), (10, 10), (10, 9)];
@@ -1767,6 +1831,11 @@ mod tests {
         c.progress = 1.0;
         s.update_car(0, DT);
         assert_eq!(s.cars[0].cur, (10, 11), "waits at a busy plain crossing");
+        // A car coming the other way out of the crossing toward us doesn't block.
+        s.cars[1].path = vec![(10, 9), (10, 10), (10, 11)];
+        s.cars[1].i = 1;
+        assert!(!s.crossing_busy(0, (10, 10)));
+        s.cars[1].path = vec![(9, 10), (10, 10), (11, 10)];
         // With a roundabout it goes straight in.
         s.inventory.roundabouts = 1;
         assert_eq!(s.place_junction((10, 10), Junction::Roundabout), EditResult::Ok);
@@ -1926,5 +1995,19 @@ mod tests {
             }
         }
         assert!(!s.homes.is_empty());
+    }
+
+    #[test]
+    fn shops_without_homes_wait_and_entrances_stay_clear() {
+        let mut s = Sim::empty(8);
+        let d = s.add_dest((10, 5), 2).unwrap();
+        run(&mut s, 30.0);
+        assert_eq!(s.dests[d].pins, 0, "no homes of its colour yet, so no demand");
+        // Homes never land in the row in front of a shop's car park.
+        for _ in 0..40 {
+            s.spawn_home(d);
+        }
+        let front = s.dests[d].origin.1 + s.dests[d].size.1 + 1;
+        assert!(s.homes.iter().all(|h| !(h.pos.1 == front && (10..13).contains(&h.pos.0))));
     }
 }

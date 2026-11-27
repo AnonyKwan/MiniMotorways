@@ -80,8 +80,8 @@ impl Scene {
         // A gentle tilt shows the sides of buildings; a narrow lens keeps the board close to
         // its true shape. Tall phone screens turn the board so its long side runs up the screen.
         let fovy: f32 = 24f32.to_radians();
-        let pitch: f32 = tilt.clamp(35.0, 90.0).min(89.5).to_radians();
         let portrait = sh > sw * 1.05;
+        let pitch: f32 = tilt.clamp(35.0, 90.0).min(89.5).to_radians();
         let back = if portrait { vec3(1.0, 0.0, 0.0) } else { vec3(0.0, 0.0, 1.0) };
         let margin = 10.0;
         let mut corners = Vec::new();
@@ -944,7 +944,7 @@ fn draw_home(mb: &mut Mb, p: Pos, facing: usize, col: Color, lift: f32) {
     // Local frame: lx to the house's right, lz toward the driveway.
     let tf = |lx: f32, ly: f32, lz: f32| c + vec3(r.x * lx + f.x * lz, ly, r.y * lx + f.y * lz);
     let y = lift;
-    let (w, d, h) = (0.74, 0.54, 0.36);
+    let (w, d, h) = (0.86, 0.64, 0.42);
     let zc = -0.08; // house sits toward the back so the drive fits in front
     // Driveway: the same asphalt and kerb as the roads, at road width, from the front wall
     // to the tile edge, so it joins a road seamlessly.
@@ -967,7 +967,7 @@ fn draw_home(mb: &mut Mb, p: Pos, facing: usize, col: Color, lift: f32) {
         mb.poly_n(&[tf(wx - 0.06, y + 0.12, fz), tf(wx + 0.06, y + 0.12, fz), tf(wx + 0.06, y + 0.24, fz), tf(wx - 0.06, y + 0.24, fz)], vec3(f.x, 0.0, f.y), WINDOW);
     }
     // Pitched roof: ridge runs parallel to the front, eaves overhang the walls.
-    let (rw, rd, rh) = (w / 2.0 + 0.06, d / 2.0 + 0.08, 0.3);
+    let (rw, rd, rh) = (w / 2.0 + 0.05, d / 2.0 + 0.07, 0.32);
     let y0 = y + h;
     let inside = tf(0.0, y0 + 0.05, zc);
     let ridge_a = tf(-rw, y0 + rh, zc);
@@ -1293,7 +1293,29 @@ fn draw_ghost(mb: &mut Mb, s: &Sim, t: Pos, ghost: Ghost, ok: bool) {
     if ghost == Ghost::None {
         return;
     }
-    let y = if terrain_at(s, t.0, t.1) == Some(Terrain::Hill) && s.cell(t) != Cell::Road { HILL_Y } else { road_h(s, t).max(0.0) } + 0.035;
+    // Over a building the preview floats at roof height so it isn't hidden inside it.
+    let y = match s.cell(t) {
+        Cell::Home(_) => 0.85,
+        Cell::Dest(_) => 1.12,
+        _ if terrain_at(s, t.0, t.1) == Some(Terrain::Hill) && s.cell(t) != Cell::Road => HILL_Y,
+        _ => road_h(s, t).max(0.0),
+    } + 0.035;
+    // Over a shop, outline the whole shop so it is clear the building is in the way.
+    if let Cell::Dest(d) | Cell::Door(d) | Cell::Park(d) = s.cell(t) {
+        if ghost != Ghost::Erase && !ok {
+            let d = &s.dests[d];
+            let (x0, z0) = (d.origin.0 as f32, d.origin.1 as f32);
+            let (x1, z1) = (x0 + d.size.0 as f32, z0 + d.size.1 as f32 + 1.0);
+            let y = if matches!(s.cell(t), Cell::Dest(_)) { 1.15 } else { 0.06 };
+            let red = Color::new(0.92, 0.27, 0.24, 0.95);
+            mb.rect_y(x0, z0, x1, z1, y, alpha(WARN, 0.22));
+            let w = 0.08;
+            for (xa, za, xb, zb) in [(x0, z0, x1, z0 + w), (x0, z1 - w, x1, z1), (x0, z0, x0 + w, z1), (x1 - w, z0, x1, z1)] {
+                mb.rect_y(xa, za, xb, zb, y + 0.004, red);
+            }
+            return;
+        }
+    }
     let (x0, z0) = (t.0 as f32, t.1 as f32);
     let c = vec2(x0 + 0.5, z0 + 0.5);
     let q = |x: f32, z: f32| vec3(x, y, z);
@@ -1349,8 +1371,11 @@ fn draw_ghost(mb: &mut Mb, s: &Sim, t: Pos, ghost: Ghost, ok: bool) {
 /// is already driving to, and the ring around a shop is the overflow timer. The bubble behind
 /// the dots turns amber, then red, as the timer fills. Shops in trouble off screen get an
 /// arrow at the screen edge.
-pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32, safe: Rect) {
+pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32, safe: Rect, shapes: bool) {
     let amber = Color::new(0.96, 0.66, 0.18, 1.0);
+    if shapes {
+        draw_shape_badges(s, sc);
+    }
     for (i, d) in s.dests.iter().enumerate() {
         let col = PALETTE[d.color];
         let top = vec3(d.origin.0 as f32 + d.size.0 as f32 / 2.0, 1.4 + drop_height(s.time - d.born), d.origin.1 as f32 + 0.3);
@@ -1385,7 +1410,12 @@ pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32, safe: Rect) {
                 let px = c.x - w / 2.0 + cx as f32 * gap;
                 let py = by + r * 1.6 + cy as f32 * gap;
                 let on_the_way = k < d.assigned as usize;
-                draw_circle(px, py, r, if on_the_way { alpha(col, 0.35) } else { col });
+                let c = if on_the_way { alpha(col, 0.35) } else { col };
+                if shapes {
+                    draw_shape(d.color, px, py, r * 1.15, c);
+                } else {
+                    draw_circle(px, py, r, c);
+                }
             }
         }
         if danger > 0.0 || d.pins > d.pin_limit() {
@@ -1411,6 +1441,63 @@ pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32, safe: Rect) {
                 draw_triangle(tip, p + v * 16.0 + side * 8.0, p + v * 16.0 - side * 8.0, ring);
             }
         }
+    }
+}
+
+/// Colour-blind aid: each colour also has its own shape, shown on a white badge over every
+/// home and shop (and used for the pins).
+fn draw_shape_badges(s: &Sim, sc: &Scene) {
+    let badge = |p: Vec3, color: usize, big: bool| {
+        let c = sc.to_screen(p);
+        let unit = (sc.to_screen(p + vec3(1.0, 0.0, 0.0)) - c).length();
+        let r = (unit * if big { 0.26 } else { 0.18 }).clamp(5.0, 12.0);
+        draw_circle(c.x, c.y, r + 1.5, alpha(darker(PALETTE[color], 0.5), 0.6));
+        draw_circle(c.x, c.y, r, WHITE);
+        draw_shape(color, c.x, c.y, r * 0.72, PALETTE[color]);
+    };
+    for h in &s.homes {
+        badge(vec3(h.pos.0 as f32 + 0.5, 1.0 + drop_height(s.time - h.born), h.pos.1 as f32 + 0.5), h.color, false);
+    }
+    for d in &s.dests {
+        let p = vec3(d.origin.0 as f32 + d.size.0 as f32 / 2.0, 1.25 + drop_height(s.time - d.born), d.origin.1 as f32 + d.size.1 as f32 / 2.0 + 0.2);
+        badge(p, d.color, true);
+    }
+}
+
+/// The shape for a colour, centred on (x, y) and fitting a circle of radius `r`:
+/// circle, triangle, square, star, diamond, hexagon.
+pub fn draw_shape(color: usize, x: f32, y: f32, r: f32, c: Color) {
+    let poly = |pts: &[Vec2]| {
+        let ctr = vec2(x, y);
+        for i in 0..pts.len() {
+            draw_triangle(ctr, pts[i], pts[(i + 1) % pts.len()], c);
+        }
+    };
+    let ring = |n: usize, rad: f32, rot: f32| -> Vec<Vec2> {
+        (0..n).map(|k| {
+            let a = rot + k as f32 / n as f32 * std::f32::consts::TAU;
+            vec2(x + a.cos() * rad, y + a.sin() * rad)
+        }).collect()
+    };
+    let up = -std::f32::consts::FRAC_PI_2;
+    match color % 6 {
+        0 => draw_circle(x, y, r * 0.9, c),
+        1 => poly(&{
+            let mut t = ring(3, r * 1.1, up);
+            for p in &mut t {
+                p.y += r * 0.18;
+            }
+            t
+        }),
+        2 => draw_rectangle(x - r * 0.78, y - r * 0.78, r * 1.56, r * 1.56, c),
+        3 => {
+            let outer = ring(5, r * 1.05, up);
+            let inner = ring(5, r * 0.45, up + std::f32::consts::PI / 5.0);
+            let pts: Vec<Vec2> = (0..10).map(|k| if k % 2 == 0 { outer[k / 2] } else { inner[k / 2] }).collect();
+            poly(&pts);
+        }
+        4 => poly(&ring(4, r * 1.05, up)),
+        _ => poly(&ring(6, r * 0.95, 0.0)),
     }
 }
 

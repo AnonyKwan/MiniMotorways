@@ -30,6 +30,8 @@ const PALETTE: [Color; 6] = [
 
 const MIN_ZOOM: f32 = 1.0;
 const MAX_ZOOM: f32 = 3.5;
+/// Closest the automatic camera gets at the start of a game.
+const FOLLOW_MAX_ZOOM: f32 = 2.0;
 
 thread_local! {
     static FONT: RefCell<Option<Font>> = const { RefCell::new(None) };
@@ -278,11 +280,14 @@ enum Action {
     Maps,
     Undo,
     Tilt(usize),
+    /// Toggle the colour-blind shapes.
+    Shapes,
 }
 
 /// Camera tilt choices in the pause menu, in degrees (90 = straight down).
 const TILTS: [(f32, &str); 4] = [(45.0, "Low"), (render3d::DEFAULT_TILT, "Default"), (72.0, "High"), (90.0, "Top")];
 const TILT_KEY: i32 = 11;
+const SHAPES_KEY: i32 = 12;
 /// Road strokes kept for undo.
 const UNDO_DEPTH: usize = 10;
 
@@ -328,6 +333,11 @@ struct Game {
     menu: bool,
     /// Index into TILTS.
     tilt: usize,
+    /// Colour-blind shapes on homes, shops and pins.
+    shapes: bool,
+    /// The camera starts close on the town and eases out as it grows, until the player
+    /// zooms or pans by hand.
+    follow: bool,
     /// Road tiles changed by the stroke in progress: (tile, true if built).
     stroke: Vec<(Pos, bool)>,
     undo: Vec<Vec<(Pos, bool)>>,
@@ -372,6 +382,8 @@ impl Game {
                 k @ 1..=4 => k as usize - 1,
                 _ => 1,
             },
+            shapes: platform::load(SHAPES_KEY) == 1,
+            follow: true,
             stroke: Vec::new(),
             undo: Vec::new(),
         }
@@ -408,6 +420,7 @@ impl Game {
         self.pan = Vec2::ZERO;
         self.new_best = false;
         self.menu = false;
+        self.follow = true;
         self.stroke.clear();
         self.undo.clear();
     }
@@ -422,7 +435,36 @@ impl Game {
     }
 
     /// Zoom by `factor` keeping the ground under screen point `at` in place.
+    /// Ease the camera toward a view that frames every building with some room around it.
+    fn follow_town(&mut self, dt: f32) {
+        let s = &self.sim;
+        let mut lo = vec2(f32::MAX, f32::MAX);
+        let mut hi = vec2(f32::MIN, f32::MIN);
+        for h in &s.homes {
+            let p = vec2(h.pos.0 as f32, h.pos.1 as f32);
+            lo = lo.min(p);
+            hi = hi.max(p + 1.0);
+        }
+        for d in &s.dests {
+            let p = vec2(d.origin.0 as f32, d.origin.1 as f32);
+            lo = lo.min(p);
+            hi = hi.max(p + vec2(d.size.0 as f32, d.size.1 as f32 + 1.0));
+        }
+        if lo.x > hi.x {
+            return;
+        }
+        let margin = 3.0;
+        let size = (hi - lo) + 2.0 * margin;
+        let want_zoom = (W as f32 / size.x).min(H as f32 / size.y).clamp(MIN_ZOOM, FOLLOW_MAX_ZOOM);
+        let want_pan = (lo + hi) * 0.5 - vec2(W as f32, H as f32) * 0.5;
+        let k = (dt * 1.5).min(1.0);
+        self.zoom += (want_zoom - self.zoom) * k;
+        self.pan += (want_pan - self.pan) * k;
+        self.clamp_pan();
+    }
+
     fn zoom_at(&mut self, factor: f32, at: Vec2) {
+        self.follow = false;
         let before = self.scene().ground_at(at.x, at.y, 0.0);
         let nz = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
         if (nz - self.zoom).abs() < 1e-4 {
@@ -438,6 +480,7 @@ impl Game {
 
     /// Move the view so the ground under `from` ends up under `to`.
     fn drag_view(&mut self, from: Vec2, to: Vec2) {
+        self.follow = false;
         let sc = self.scene();
         if let (Some(a), Some(b)) = (sc.ground_at(from.x, from.y, 0.0), sc.ground_at(to.x, to.y, 0.0)) {
             self.pan -= b - a;
@@ -473,6 +516,10 @@ impl Game {
                 self.highway_from = None;
             }
             Action::Undo => self.undo(),
+            Action::Shapes => {
+                self.shapes = !self.shapes;
+                platform::save(SHAPES_KEY, self.shapes as i32);
+            }
             Action::Tilt(i) => {
                 self.tilt = i.min(TILTS.len() - 1);
                 platform::save(TILT_KEY, self.tilt as i32 + 1);
@@ -584,7 +631,7 @@ fn undo_rect() -> Rect {
 
 fn menu_card() -> Rect {
     let w = (uw() - 24.0).min(380.0);
-    let h = 372.0;
+    let h = 428.0;
     Rect::new((uw() - w) / 2.0, ((uh() - h) / 2.0).max(HUD_H), w, h)
 }
 
@@ -600,7 +647,8 @@ fn menu_buttons() -> Vec<Btn> {
     for i in 0..TILTS.len() {
         out.push(Btn { rect: Rect::new(x + i as f32 * seg, c.y + 222.0, seg, 40.0), action: Action::Tilt(i) });
     }
-    out.push(Btn { rect: Rect::new(x, c.y + 296.0, w, 46.0), action: Action::Mute });
+    out.push(Btn { rect: Rect::new(x, c.y + 296.0, w, 46.0), action: Action::Shapes });
+    out.push(Btn { rect: Rect::new(x, c.y + 352.0, w, 46.0), action: Action::Mute });
     out
 }
 
@@ -802,6 +850,11 @@ async fn main() {
             if !g.menu {
                 play_input(&mut g, consumed, m, mp);
             }
+            // Don't move the view under a finger that is drawing.
+            let drawing = is_mouse_button_down(MouseButton::Left) || is_mouse_button_down(MouseButton::Right);
+            if g.follow && !drawing {
+                g.follow_town(get_frame_time().min(0.1));
+            }
             step_sim(&mut g);
         } else {
             // Hovering a map card previews it behind the title.
@@ -848,7 +901,7 @@ async fn main() {
                 set_default_camera();
                 let k = ui_scale();
                 let safe = Rect::new(0.0, HUD_H * k, screen_width(), screen_height() - (HUD_H + BAR_H) * k);
-                render3d::draw_overlays(&g.sim, &scene, time, safe);
+                render3d::draw_overlays(&g.sim, &scene, time, safe, g.shapes);
                 set_camera(&ui_camera());
                 draw_hud(&g, &btns);
                 if !g.sim.game_over && g.sim.offer.is_none() && !g.menu {
@@ -912,6 +965,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
         k.x += 1.0;
     }
     if k != Vec2::ZERO && g.zoom > 1.0 {
+        g.follow = false;
         g.pan += k * 16.0 * dt / g.zoom;
         g.clamp_pan();
     }
@@ -1355,11 +1409,13 @@ fn draw_menu(g: &Game, btns: &[Btn], m: Vec2) {
                 pill(r.x, r.y, r.w, r.h, if hovered { Color::new(0.3, 0.3, 0.36, 1.0) } else { INK });
                 text_centered("Resume", r.center().x, r.y + 30.0, 22.0, WHITE);
             }
-            Action::Restart | Action::Maps | Action::Mute => {
+            Action::Restart | Action::Maps | Action::Mute | Action::Shapes => {
                 pill(r.x, r.y, r.w, r.h, if hovered { Color::new(0.0, 0.0, 0.0, 0.12) } else { CHIP });
                 let label = match b.action {
                     Action::Restart => "Restart",
                     Action::Maps => "Maps",
+                    Action::Shapes if g.shapes => "Colour shapes: on",
+                    Action::Shapes => "Colour shapes: off",
                     _ if platform::muted() => "Sound: off",
                     _ => "Sound: on",
                 };

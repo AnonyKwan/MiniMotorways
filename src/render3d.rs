@@ -28,7 +28,6 @@ const LEAF_A: Color = Color::new(0.33, 0.60, 0.34, 1.0);
 const LEAF_B: Color = Color::new(0.44, 0.69, 0.38, 1.0);
 const PINE: Color = Color::new(0.25, 0.50, 0.36, 1.0);
 const SHADOW: Color = Color::new(0.10, 0.14, 0.10, 0.22);
-pub const SKY: Color = Color::new(0.84, 0.91, 0.92, 1.0);
 
 const GROUND_Y: f32 = 0.0;
 const WATER_Y: f32 = -0.26;
@@ -64,20 +63,24 @@ fn noise(x: f32, y: f32, scale: f32, salt: u32) -> f32 {
 
 // ---- Camera --------------------------------------------------------------------
 
+/// Default camera tilt in degrees.
+pub const DEFAULT_TILT: f32 = 58.0;
+
 pub struct Scene {
     pub cam: Camera3D,
     vp: Mat4,
 }
 
 impl Scene {
-    /// Camera that fits the whole board between the top bar and the bottom inset, then zooms by `zoom` (1 = whole board)
-    /// and shifts by `pan` tiles.
-    pub fn new(hud_h: f32, bottom: f32, zoom: f32, pan: Vec2) -> Scene {
+    /// Camera that fits the whole board between the top bar and the bottom inset, looking down
+    /// at `tilt` degrees (90 = straight down), then zooms by `zoom` (1 = whole board) and shifts
+    /// by `pan` tiles.
+    pub fn with_tilt(hud_h: f32, bottom: f32, zoom: f32, pan: Vec2, tilt: f32) -> Scene {
         let (sw, sh) = (screen_width(), screen_height());
         // A gentle tilt shows the sides of buildings; a narrow lens keeps the board close to
         // its true shape. Tall phone screens turn the board so its long side runs up the screen.
         let fovy: f32 = 24f32.to_radians();
-        let pitch: f32 = 58f32.to_radians();
+        let pitch: f32 = tilt.clamp(35.0, 90.0).min(89.5).to_radians();
         let portrait = sh > sw * 1.05;
         let back = if portrait { vec3(1.0, 0.0, 0.0) } else { vec3(0.0, 0.0, 1.0) };
         let margin = 10.0;
@@ -768,6 +771,8 @@ fn draw_water_glints(mb: &mut Mb, s: &Sim, time: f32) {
 
 /// Traffic lights: pole, lamp and stop bars coloured by the current phase.
 fn draw_lights(mb: &mut Mb, s: &Sim) {
+    let (on, off) = (Color::new(0.3, 0.88, 0.42, 1.0), Color::new(0.95, 0.28, 0.24, 1.0));
+    let housing = Color::new(0.2, 0.2, 0.23, 1.0);
     for z in 0..H {
         for x in 0..W {
             if s.cells[idx((x, z))] != Cell::Road || s.junctions[idx((x, z))] != Junction::Light {
@@ -776,25 +781,30 @@ fn draw_lights(mb: &mut Mb, s: &Sim) {
             let cell = Cell::Road;
             let hy = road_h(s, (x, z));
             let ctr = vec3(x as f32 + 0.5, 0.012 + hy, z as f32 + 0.5);
-            let my = ctr.y + 0.004;
-            let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, cell, (x, z), (x + d.0, z + d.1))).collect();
-            let pole = vec3(ctr.x + 0.36, hy, ctr.z - 0.36);
-            mb.boxx(pole + Vec3::Y * 0.2, vec3(0.04, 0.4, 0.04), vec2(1.0, 0.0), Color::new(0.3, 0.3, 0.33, 1.0));
-            let green_x = s.light_green((x, z), 0);
-            let (on, off) = (Color::new(0.3, 0.85, 0.4, 1.0), Color::new(0.9, 0.3, 0.25, 1.0));
-            mb.boxx(pole + vec3(-0.05, 0.42, 0.0), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { on } else { off });
-            mb.boxx(pole + vec3(0.0, 0.42, 0.05), vec3(0.07, 0.07, 0.07), vec2(1.0, 0.0), if green_x { off } else { on });
-            // Stop bars: green arms may go, red arms wait.
-            for d in &links {
+            let my = ctr.y + 0.006;
+            // Stop bars on every arm: wide and bright so the state reads at a glance.
+            for (k, d) in DIRS.iter().enumerate() {
+                if !connects(s, cell, (x, z), (x + d.0, z + d.1)) {
+                    continue;
+                }
+                // Traffic on this arm heads into the junction, against the arm's direction.
+                let go = s.light_green((x, z), (k + 2) % 4);
                 let (dx, dz) = (d.0 as f32, d.1 as f32);
-                let go = (d.1 == 0) == green_x;
-                let c2 = vec3(ctr.x + dx * 0.34, my, ctr.z + dz * 0.34);
-                let side = vec3(-dz, 0.0, dx) * 0.29;
-                let along = vec3(dx, 0.0, dz) * 0.07;
+                let c2 = vec3(ctr.x + dx * 0.36, my, ctr.z + dz * 0.36);
+                let side = vec3(-dz, 0.0, dx) * 0.31;
+                let along = vec3(dx, 0.0, dz) * 0.1;
                 mb.flat(&[c2 + side + along, c2 - side + along, c2 - side, c2 + side], if go { on } else { off });
             }
-            mb.disk(pole + vec3(0.0, 0.46, 0.0), 0.09, 12, Color::new(0.22, 0.22, 0.25, 1.0));
-            mb.disk(pole + vec3(0.0, 0.47, 0.0), 0.055, 12, if green_x { on } else { off });
+            // A tall post on the corner with a two-lamp head facing each axis.
+            let pole = vec3(ctr.x + 0.4, hy, ctr.z - 0.4);
+            mb.boxx(pole + Vec3::Y * 0.36, vec3(0.06, 0.72, 0.06), vec2(1.0, 0.0), Color::new(0.32, 0.32, 0.35, 1.0));
+            let head = pole + Vec3::Y * 0.8;
+            mb.boxx(head, vec3(0.2, 0.18, 0.2), vec2(1.0, 0.0), housing);
+            let ew = s.light_green((x, z), 0);
+            let ns = s.light_green((x, z), 1);
+            mb.boxx(head + vec3(-0.105, 0.0, 0.0), vec3(0.02, 0.12, 0.12), vec2(1.0, 0.0), if ew { on } else { off });
+            mb.boxx(head + vec3(0.0, 0.0, 0.105), vec3(0.12, 0.12, 0.02), vec2(1.0, 0.0), if ns { on } else { off });
+            mb.disk(head + vec3(0.0, 0.091, 0.0), 0.075, 12, if ew || ns { on } else { off });
         }
     }
 }
@@ -1141,25 +1151,37 @@ fn draw_cars(mb: &mut Mb, s: &Sim, poses: &[Option<(Vec2, Vec2)>]) {
         let base = vec3(p.x, ground, p.y);
         mb.flat(
             &[
-                base + vec3(-0.22, 0.017, -0.13) + vec3(0.06, 0.0, -0.04),
-                base + vec3(0.22, 0.017, -0.13) + vec3(0.06, 0.0, -0.04),
-                base + vec3(0.22, 0.017, 0.13) + vec3(0.06, 0.0, -0.04),
-                base + vec3(-0.22, 0.017, 0.13) + vec3(0.06, 0.0, -0.04),
+                base + vec3(-0.26, 0.017, -0.15) + vec3(0.06, 0.0, -0.04),
+                base + vec3(0.26, 0.017, -0.15) + vec3(0.06, 0.0, -0.04),
+                base + vec3(0.26, 0.017, 0.15) + vec3(0.06, 0.0, -0.04),
+                base + vec3(-0.26, 0.017, 0.15) + vec3(0.06, 0.0, -0.04),
             ],
             alpha(SHADOW, 0.18),
         );
-        mb.boxx(base + Vec3::Y * 0.1, vec3(0.44, 0.12, 0.24), dir, col);
-        mb.boxx(base + Vec3::Y * 0.2 - vec3(dir.x, 0.0, dir.y) * 0.03, vec3(0.24, 0.09, 0.2), dir, lighter(Color::new(0.25, 0.3, 0.38, 1.0), 0.25));
-        mb.boxx(base + Vec3::Y * 0.25 - vec3(dir.x, 0.0, dir.y) * 0.03, vec3(0.2, 0.02, 0.2), dir, lighter(col, 0.3));
+        mb.boxx(base + Vec3::Y * 0.1, vec3(0.52, 0.13, 0.27), dir, col);
+        mb.boxx(base + Vec3::Y * 0.21 - vec3(dir.x, 0.0, dir.y) * 0.04, vec3(0.28, 0.1, 0.23), dir, lighter(Color::new(0.25, 0.3, 0.38, 1.0), 0.25));
+        mb.boxx(base + Vec3::Y * 0.265 - vec3(dir.x, 0.0, dir.y) * 0.04, vec3(0.23, 0.02, 0.22), dir, darker(col, 0.12));
     }
 }
 
 // ---- Public entry points ---------------------------------------------------------
 
+/// What the hovered tile would become, drawn as a see-through preview.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Ghost {
+    None,
+    Road,
+    Erase,
+    Roundabout,
+    Light,
+    Highway,
+}
+
 pub struct Highlight {
     pub tile: Option<Pos>,
-    /// Colour of the hover marker.
-    pub tint: Color,
+    pub ghost: Ghost,
+    /// Whether the action would work there (white outline) or not (red outline).
+    pub ok: bool,
     pub flash: Option<(Pos, f32)>,
     /// Highway being placed: its start tile and whether the hovered end is valid.
     pub highway_from: Option<(Pos, bool)>,
@@ -1244,8 +1266,7 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight, cache: &mut WorldCache, ca
     }
     draw_cars(&mut mb, s, car_poses);
     if let Some(t) = hl.tile {
-        let y = if terrain_at(s, t.0, t.1) == Some(Terrain::Hill) { HILL_Y } else { road_h(s, t) } + 0.03;
-        mb.rect_y(t.0 as f32 + 0.04, t.1 as f32 + 0.04, t.0 as f32 + 0.96, t.1 as f32 + 0.96, y, hl.tint);
+        draw_ghost(&mut mb, s, t, hl.ghost, hl.ok);
         if let Some((from, ok)) = hl.highway_from {
             let a = vec2(from.0 as f32 + 0.5, from.1 as f32 + 0.5);
             let b = vec2(t.0 as f32 + 0.5, t.1 as f32 + 0.5);
@@ -1266,48 +1287,140 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight, cache: &mut WorldCache, ca
     mb.flush();
 }
 
+/// A see-through preview of what a click would build, with an outline that says whether it
+/// would work: white for yes, red for no.
+fn draw_ghost(mb: &mut Mb, s: &Sim, t: Pos, ghost: Ghost, ok: bool) {
+    if ghost == Ghost::None {
+        return;
+    }
+    let y = if terrain_at(s, t.0, t.1) == Some(Terrain::Hill) && s.cell(t) != Cell::Road { HILL_Y } else { road_h(s, t).max(0.0) } + 0.035;
+    let (x0, z0) = (t.0 as f32, t.1 as f32);
+    let c = vec2(x0 + 0.5, z0 + 0.5);
+    let q = |x: f32, z: f32| vec3(x, y, z);
+    let edge = if ok { Color::new(1.0, 1.0, 1.0, 0.95) } else { Color::new(0.92, 0.27, 0.24, 0.95) };
+    match ghost {
+        Ghost::Road => {
+            let fill = if ok { alpha(ASPHALT, 0.55) } else { alpha(WARN, 0.25) };
+            mb.rect_y(x0 + 0.19, z0 + 0.19, x0 + 0.81, z0 + 0.81, y, fill);
+            if ok {
+                mb.rect_y(c.x - 0.12, c.y - 0.025, c.x + 0.12, c.y + 0.025, y + 0.002, alpha(MARKING, 0.9));
+            }
+        }
+        Ghost::Erase => {
+            mb.rect_y(x0 + 0.06, z0 + 0.06, x0 + 0.94, z0 + 0.94, y, alpha(WARN, if ok { 0.35 } else { 0.15 }));
+            for d in [vec2(1.0, 1.0), vec2(1.0, -1.0)] {
+                let (a, b) = (c - d * 0.24, c + d * 0.24);
+                let n = vec2(-d.y, d.x).normalize() * 0.04;
+                mb.flat(&[q(a.x + n.x, a.y + n.y), q(b.x + n.x, b.y + n.y), q(b.x - n.x, b.y - n.y), q(a.x - n.x, a.y - n.y)], alpha(WHITE, 0.9));
+            }
+        }
+        Ghost::Roundabout => {
+            // The ring spills into the eight tiles around, so show its full footprint.
+            let r_out = 0.5 + ROUNDABOUT_GROW;
+            let col = if ok { Color::new(1.0, 0.85, 0.35, 0.45) } else { alpha(WARN, 0.3) };
+            let n = 32;
+            for k in 0..n {
+                let (a0, a1) = (k as f32 / n as f32 * std::f32::consts::TAU, (k + 1) as f32 / n as f32 * std::f32::consts::TAU);
+                let p = |a: f32, r: f32| q(c.x + a.cos() * r, c.y + a.sin() * r);
+                mb.flat(&[p(a0, 0.36), p(a0, r_out), p(a1, r_out), p(a1, 0.36)], col);
+            }
+            mb.disk(q(c.x, c.y), 0.3, 20, alpha(Color::new(0.45, 0.72, 0.42, 1.0), 0.55));
+        }
+        Ghost::Light => {
+            mb.rect_y(x0 + 0.1, z0 + 0.1, x0 + 0.9, z0 + 0.9, y, if ok { Color::new(1.0, 0.85, 0.35, 0.4) } else { alpha(WARN, 0.25) });
+            mb.disk(q(c.x, c.y), 0.14, 14, alpha(Color::new(0.3, 0.85, 0.4, 1.0), 0.9));
+        }
+        Ghost::Highway => {
+            mb.rect_y(x0 + 0.1, z0 + 0.1, x0 + 0.9, z0 + 0.9, y, if ok { Color::new(1.0, 0.85, 0.35, 0.5) } else { alpha(WARN, 0.25) });
+        }
+        Ghost::None => {}
+    }
+    // Outline frame
+    let (a, b, w) = (0.03, 0.97, 0.06);
+    let y2 = y + 0.004;
+    for (xa, za, xb, zb) in [(a, a, b, a + w), (a, b - w, b, b), (a, a, a + w, b), (b - w, a, b, b)] {
+        mb.rect_y(x0 + xa, z0 + za, x0 + xb, z0 + zb, y2, edge);
+    }
+}
+
 /// 2D overlays drawn after the 3D pass: demand pins and overflow rings stay crisp and readable.
-pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32) {
+///
+/// One visual language: a solid dot is a trip waiting for a car, a faded dot is a trip a car
+/// is already driving to, and the ring around a shop is the overflow timer. The bubble behind
+/// the dots turns amber, then red, as the timer fills. Shops in trouble off screen get an
+/// arrow at the screen edge.
+pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32, safe: Rect) {
+    let amber = Color::new(0.96, 0.66, 0.18, 1.0);
     for (i, d) in s.dests.iter().enumerate() {
         let col = PALETTE[d.color];
         let top = vec3(d.origin.0 as f32 + d.size.0 as f32 / 2.0, 1.4 + drop_height(s.time - d.born), d.origin.1 as f32 + 0.3);
         let c = sc.to_screen(top);
         let unit = (sc.to_screen(top + vec3(1.0, 0.0, 0.0)) - c).length();
         let n = d.pins.min(12) as usize;
+        let danger = d.overflow;
+        let rim = if s.failed_dest == Some(i) || danger >= 0.8 {
+            Some(WARN)
+        } else if danger >= 0.5 {
+            Some(amber)
+        } else {
+            None
+        };
         if n > 0 {
-            let r = (unit * 0.15).max(5.0);
+            let r = (unit * 0.15).clamp(7.0, 12.0);
             let gap = r * 2.5;
             let per_row = n.min(6);
             let rows = n.div_ceil(6);
             let w = gap * (per_row as f32 - 1.0);
-            // Bubble behind the pins
             let bw = w + r * 3.2;
             let bh = gap * (rows as f32 - 1.0) + r * 3.2;
-            let (bx, by) = (c.x - bw / 2.0, c.y - bh);
-            draw_rectangle(bx + r * 0.8, by, bw - r * 1.6, bh, alpha(WHITE, 0.92));
-            draw_rectangle(bx, by + r * 0.8, bw, bh - r * 1.6, alpha(WHITE, 0.92));
-            for (ex, ey) in [(bx + r * 0.8, by + r * 0.8), (bx + bw - r * 0.8, by + r * 0.8), (bx + r * 0.8, by + bh - r * 0.8), (bx + bw - r * 0.8, by + bh - r * 0.8)] {
-                draw_circle(ex, ey, r * 0.8, alpha(WHITE, 0.92));
+            let (bx, by) = (c.x - bw / 2.0, c.y - bh - r * 0.6);
+            if let Some(rc) = rim {
+                // Opaque, pulsing in width (overlapping translucent pieces would show seams).
+                let o = 2.5 + 1.5 * (time * 6.0).sin();
+                bubble(bx - o, by - o, bw + 2.0 * o, bh + 2.0 * o, r + o, c, rc);
             }
-            draw_triangle(vec2(c.x - r * 0.7, c.y - 0.5), vec2(c.x + r * 0.7, c.y - 0.5), vec2(c.x, c.y + r * 0.9), alpha(WHITE, 0.92));
+            bubble(bx, by, bw, bh, r, c, WHITE);
             for k in 0..n {
                 let (cx, cy) = (k % 6, k / 6);
                 let px = c.x - w / 2.0 + cx as f32 * gap;
                 let py = by + r * 1.6 + cy as f32 * gap;
-                if k < d.assigned as usize {
-                    draw_circle_lines(px, py, r, 2.0, col);
-                } else {
-                    draw_circle(px, py, r, col);
-                }
+                let on_the_way = k < d.assigned as usize;
+                draw_circle(px, py, r, if on_the_way { alpha(col, 0.35) } else { col });
             }
         }
-        if d.overflow > 0.0 || d.pins > d.pin_limit() {
+        if danger > 0.0 || d.pins > d.pin_limit() {
             let g = vec3(d.origin.0 as f32 + d.size.0 as f32 / 2.0, 0.05, d.origin.1 as f32 + d.size.1 as f32 / 2.0);
             let gc = sc.to_screen(g);
             let rad = (sc.to_screen(g + vec3(2.0, 0.0, 0.0)) - gc).length();
+            let ring = rim.unwrap_or(amber);
             draw_poly_lines(gc.x, gc.y, 64, rad, 0.0, 8.0, alpha(Color::new(0.2, 0.1, 0.1, 1.0), 0.18));
             let pulse = if s.failed_dest == Some(i) { 1.0 } else { 0.75 + 0.25 * (time * 6.0).sin() };
-            draw_arc(gc.x, gc.y, 64, rad - 4.0, -90.0, 8.0, 360.0 * d.overflow.min(1.0), alpha(WARN, pulse));
+            draw_arc(gc.x, gc.y, 64, rad - 4.0, -90.0, 8.0, 360.0 * danger.min(1.0), alpha(ring, pulse));
+            // Off screen: point at it from the edge of the play area.
+            if !safe.contains(gc) {
+                let ctr = safe.center();
+                let v = (gc - ctr).normalize_or(vec2(0.0, -1.0));
+                let tx = if v.x.abs() > 1e-4 { (safe.w * 0.5 - 22.0) / v.x.abs() } else { f32::MAX };
+                let ty = if v.y.abs() > 1e-4 { (safe.h * 0.5 - 22.0) / v.y.abs() } else { f32::MAX };
+                let p = ctr + v * tx.min(ty);
+                let side = vec2(-v.y, v.x);
+                draw_circle(p.x, p.y, 17.0, alpha(WHITE, 0.95));
+                draw_circle(p.x, p.y, 12.0, col);
+                draw_arc(p.x, p.y, 32, 15.0, -90.0, 3.5, 360.0 * danger.min(1.0), ring);
+                let tip = p + v * 26.0;
+                draw_triangle(tip, p + v * 16.0 + side * 8.0, p + v * 16.0 - side * 8.0, ring);
+            }
         }
     }
+}
+
+/// White speech bubble with a small tail pointing down at `tail`.
+fn bubble(x: f32, y: f32, w: f32, h: f32, r: f32, tail: Vec2, c: Color) {
+    let k = r * 0.8;
+    draw_rectangle(x + k, y, w - 2.0 * k, h, c);
+    draw_rectangle(x, y + k, w, h - 2.0 * k, c);
+    for (ex, ey) in [(x + k, y + k), (x + w - k, y + k), (x + k, y + h - k), (x + w - k, y + h - k)] {
+        draw_circle(ex, ey, k, c);
+    }
+    draw_triangle(vec2(tail.x - r * 0.8, y + h - 0.5), vec2(tail.x + r * 0.8, y + h - 0.5), vec2(tail.x, y + h + r * 0.9), c);
 }

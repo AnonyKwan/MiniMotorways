@@ -24,7 +24,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Test game rules
-        run: cargo test --lib
+        run: cargo test --release --lib --tests
       - name: Build the web version
         run: ./build_web.sh
       - uses: actions/configure-pages@v5

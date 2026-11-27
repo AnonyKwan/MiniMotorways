@@ -274,7 +274,17 @@ enum Action {
     Start(usize),
     Resume,
     Restart,
+    /// Back to the map picker.
+    Maps,
+    Undo,
+    Tilt(usize),
 }
+
+/// Camera tilt choices in the pause menu, in degrees (90 = straight down).
+const TILTS: [(f32, &str); 4] = [(45.0, "Low"), (render3d::DEFAULT_TILT, "Default"), (72.0, "High"), (90.0, "Top")];
+const TILT_KEY: i32 = 11;
+/// Road strokes kept for undo.
+const UNDO_DEPTH: usize = 10;
 
 struct Btn {
     rect: Rect,
@@ -314,6 +324,13 @@ struct Game {
     prev_poses: Vec<Option<(Vec2, Vec2)>>,
     world_cache: render3d::WorldCache,
     title_cache: render3d::WorldCache,
+    /// Pause menu open over the game.
+    menu: bool,
+    /// Index into TILTS.
+    tilt: usize,
+    /// Road tiles changed by the stroke in progress: (tile, true if built).
+    stroke: Vec<(Pos, bool)>,
+    undo: Vec<Vec<(Pos, bool)>>,
 }
 
 fn seed() -> u64 {
@@ -350,6 +367,31 @@ impl Game {
             prev_poses: Vec::new(),
             world_cache: Default::default(),
             title_cache: Default::default(),
+            menu: false,
+            tilt: match platform::load(TILT_KEY) {
+                k @ 1..=4 => k as usize - 1,
+                _ => 1,
+            },
+            stroke: Vec::new(),
+            undo: Vec::new(),
+        }
+    }
+
+    fn tilt_deg(&self) -> f32 {
+        TILTS[self.tilt.min(TILTS.len() - 1)].0
+    }
+
+    /// Reverse the last road stroke.
+    fn undo(&mut self) {
+        let Some(stroke) = self.undo.pop() else { return };
+        let mut ok = true;
+        for (p, built) in stroke.into_iter().rev() {
+            let r = if built { self.sim.erase_road(p) } else { self.sim.place_road(p) };
+            ok &= matches!(r, EditResult::Ok | EditResult::NoChange);
+        }
+        platform::play(Sfx::Road);
+        if !ok {
+            self.sim.toast = Some(("Some tiles could not be undone".into(), 2.5));
         }
     }
 
@@ -365,10 +407,13 @@ impl Game {
         self.zoom = 1.0;
         self.pan = Vec2::ZERO;
         self.new_best = false;
+        self.menu = false;
+        self.stroke.clear();
+        self.undo.clear();
     }
 
     fn scene(&self) -> render3d::Scene {
-        render3d::Scene::new(HUD_H * ui_scale(), BAR_H * ui_scale(), self.zoom, self.pan)
+        render3d::Scene::with_tilt(HUD_H * ui_scale(), BAR_H * ui_scale(), self.zoom, self.pan, self.tilt_deg())
     }
 
     fn clamp_pan(&mut self) {
@@ -419,15 +464,28 @@ impl Game {
             Action::Tool(t) => self.select_tool(t),
             Action::Mute => platform::set_muted(!platform::muted()),
             Action::Menu => {
+                self.menu = !self.menu;
+                self.highway_from = None;
+            }
+            Action::Maps => {
+                self.menu = false;
                 self.screen = Screen::Title;
                 self.highway_from = None;
+            }
+            Action::Undo => self.undo(),
+            Action::Tilt(i) => {
+                self.tilt = i.min(TILTS.len() - 1);
+                platform::save(TILT_KEY, self.tilt as i32 + 1);
             }
             Action::Choose(i) => {
                 self.sim.choose(i);
                 platform::play(Sfx::Pick);
             }
             Action::Start(i) => self.start(MapKind::ALL[i.min(2)]),
-            Action::Resume => self.screen = Screen::Play,
+            Action::Resume => {
+                self.screen = Screen::Play;
+                self.menu = false;
+            }
             Action::Restart => self.start(self.map),
         }
     }
@@ -441,9 +499,10 @@ fn top_buttons(with_game: bool) -> Vec<Btn> {
         let w = if narrow() { 36.0 } else { 44.0 };
         items.extend([(Action::Speed(0), w), (Action::Speed(1), w), (Action::Speed(2), w)]);
     }
-    items.push((Action::Mute, if narrow() { 36.0 } else { 44.0 }));
     if with_game {
         items.push((Action::Menu, if narrow() { 36.0 } else { 72.0 }));
+    } else {
+        items.push((Action::Mute, if narrow() { 36.0 } else { 44.0 }));
     }
     let mut x = uw() - 12.0;
     let mut out = Vec::new();
@@ -517,6 +576,34 @@ fn title_buttons(in_game: bool) -> Vec<Btn> {
     out
 }
 
+/// Small floating buttons just above the tool bar: undo on the left.
+fn undo_rect() -> Rect {
+    let bar = bar_rect();
+    Rect::new(bar.x + 4.0, bar.y - 54.0, 44.0, 44.0)
+}
+
+fn menu_card() -> Rect {
+    let w = (uw() - 24.0).min(380.0);
+    let h = 372.0;
+    Rect::new((uw() - w) / 2.0, ((uh() - h) / 2.0).max(HUD_H), w, h)
+}
+
+fn menu_buttons() -> Vec<Btn> {
+    let c = menu_card();
+    let (x, w) = (c.x + 24.0, c.w - 48.0);
+    let mut out = vec![
+        Btn { rect: Rect::new(x, c.y + 70.0, w, 46.0), action: Action::Resume },
+        Btn { rect: Rect::new(x, c.y + 126.0, (w - 10.0) / 2.0, 46.0), action: Action::Restart },
+        Btn { rect: Rect::new(x + (w + 10.0) / 2.0, c.y + 126.0, (w - 10.0) / 2.0, 46.0), action: Action::Maps },
+    ];
+    let seg = w / TILTS.len() as f32;
+    for i in 0..TILTS.len() {
+        out.push(Btn { rect: Rect::new(x + i as f32 * seg, c.y + 222.0, seg, 40.0), action: Action::Tilt(i) });
+    }
+    out.push(Btn { rect: Rect::new(x, c.y + 296.0, w, 46.0), action: Action::Mute });
+    out
+}
+
 fn game_over_buttons() -> Vec<Btn> {
     let (cx, cy) = (uw() / 2.0, uh() / 2.0);
     vec![
@@ -529,6 +616,7 @@ fn buttons_for(g: &Game) -> Vec<Btn> {
     match g.screen {
         Screen::Title => title_buttons(g.in_game),
         Screen::Play if g.sim.game_over => game_over_buttons(),
+        Screen::Play if g.menu => menu_buttons(),
         Screen::Play if g.sim.offer.is_some() => {
             let mut b = offer_buttons();
             b.extend(top_buttons(false));
@@ -537,6 +625,9 @@ fn buttons_for(g: &Game) -> Vec<Btn> {
         Screen::Play => {
             let mut b = top_buttons(true);
             b.extend(tool_buttons());
+            if !g.undo.is_empty() {
+                b.push(Btn { rect: undo_rect(), action: Action::Undo });
+            }
             b
         }
     }
@@ -659,6 +750,11 @@ async fn main() {
                     g.act(Action::Resume);
                 }
             }
+            Screen::Play if g.menu => {
+                if is_key_pressed(KeyCode::Escape) {
+                    g.menu = false;
+                }
+            }
             Screen::Play if g.sim.game_over => {
                 if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Space) {
                     g.act(Action::Restart);
@@ -695,12 +791,17 @@ async fn main() {
                         g.act(Action::Menu);
                     }
                 }
+                if is_key_pressed(KeyCode::Z) || is_key_pressed(KeyCode::U) {
+                    g.undo();
+                }
             }
         }
 
         // ---- World input and simulation ------------------------------------------
         if g.screen == Screen::Play {
-            play_input(&mut g, consumed, m, mp);
+            if !g.menu {
+                play_input(&mut g, consumed, m, mp);
+            }
             step_sim(&mut g);
         } else {
             // Hovering a map card previews it behind the title.
@@ -718,17 +819,17 @@ async fn main() {
         let time = get_time() as f32;
         match g.screen {
             Screen::Title => {
-                let scene = render3d::Scene::new(0.0, 0.0, 1.0, Vec2::ZERO);
+                let scene = render3d::Scene::with_tilt(0.0, 0.0, 1.0, Vec2::ZERO, g.tilt_deg());
                 set_camera(&scene.cam);
-                render3d::draw_world(&g.title_sim, time, &render3d::Highlight { tile: None, tint: WHITE, flash: None, highway_from: None }, &mut g.title_cache, &[]);
+                render3d::draw_world(&g.title_sim, time, &render3d::Highlight { tile: None, ghost: render3d::Ghost::None, ok: true, flash: None, highway_from: None }, &mut g.title_cache, &[]);
                 set_camera(&ui_camera());
                 draw_title(&g, &btns, m);
             }
             Screen::Play => {
                 let scene = g.scene();
-                let over_ui = m.y < HUD_H || bar_rect().contains(m) || g.sim.offer.is_some() || g.sim.game_over;
+                let over_ui = m.y < HUD_H || bar_rect().contains(m) || g.sim.offer.is_some() || g.sim.game_over || g.menu;
                 let hover = if over_ui { None } else { scene.pick_on(&g.sim, mp.x, mp.y) };
-                let tint = hover_tint(&g, hover);
+                let (ghost, ok) = hover.map(|h| hover_ghost(&g, h)).unwrap_or((render3d::Ghost::None, true));
                 let poses = smooth_poses(&g);
                 set_camera(&scene.cam);
                 render3d::draw_world(
@@ -736,7 +837,8 @@ async fn main() {
                     time,
                     &render3d::Highlight {
                         tile: hover,
-                        tint,
+                        ghost,
+                        ok,
                         flash: g.flash,
                         highway_from: g.highway_from.map(|f| (f, hover.is_some_and(|h| g.sim.highway_ok(f, h)))),
                     },
@@ -744,13 +846,18 @@ async fn main() {
                     &poses,
                 );
                 set_default_camera();
-                render3d::draw_overlays(&g.sim, &scene, time);
+                let k = ui_scale();
+                let safe = Rect::new(0.0, HUD_H * k, screen_width(), screen_height() - (HUD_H + BAR_H) * k);
+                render3d::draw_overlays(&g.sim, &scene, time, safe);
                 set_camera(&ui_camera());
                 draw_hud(&g, &btns);
-                if !g.sim.game_over && g.sim.offer.is_none() {
+                if !g.sim.game_over && g.sim.offer.is_none() && !g.menu {
                     draw_toolbar(&g, &btns, m);
                 }
                 draw_toast(&g);
+                if g.menu {
+                    draw_menu(&g, &btns, m);
+                }
                 if g.sim.offer.is_some() {
                     draw_offer(&g, &btns, m);
                 }
@@ -765,19 +872,25 @@ async fn main() {
     }
 }
 
-fn hover_tint(g: &Game, hover: Option<Pos>) -> Color {
-    let erase = g.tool == Tool::Erase || is_mouse_button_down(MouseButton::Right);
-    match (g.tool, hover) {
-        _ if erase => with_alpha(WARN, 0.45),
-        (Tool::Roundabout | Tool::Light, Some(p)) => {
-            if g.sim.cell(p) == Cell::Road {
-                with_alpha(GOLD, 0.6)
-            } else {
-                with_alpha(WARN, 0.4)
-            }
+/// The placement preview for the hovered tile and whether a click there would work.
+fn hover_ghost(g: &Game, p: Pos) -> (render3d::Ghost, bool) {
+    use render3d::Ghost;
+    let s = &g.sim;
+    if g.tool == Tool::Erase || is_mouse_button_down(MouseButton::Right) {
+        return (Ghost::Erase, s.cell(p) == Cell::Road);
+    }
+    match g.tool {
+        Tool::Road => (Ghost::Road, matches!(s.road_check(p), EditResult::Ok | EditResult::NoChange)),
+        Tool::Roundabout => (Ghost::Roundabout, s.inventory.roundabouts > 0 && s.junction_fits(p, Junction::Roundabout)),
+        Tool::Light => (Ghost::Light, s.inventory.lights > 0 && s.junction_fits(p, Junction::Light)),
+        Tool::Highway => {
+            let ok = match g.highway_from {
+                Some(f) => s.highway_ok(f, p),
+                None => s.inventory.highways > 0 && s.terrain[idx(p)] == Terrain::Grass && matches!(s.cell(p), Cell::Empty | Cell::Road),
+            };
+            (Ghost::Highway, ok)
         }
-        (Tool::Highway, _) => with_alpha(GOLD, 0.55),
-        _ => Color::new(1.0, 1.0, 1.0, 0.38),
+        Tool::Erase => (Ghost::Erase, s.cell(p) == Cell::Road),
     }
 }
 
@@ -849,6 +962,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     }
     if g.touch_lock || blocked {
         g.last_tile = None;
+        end_stroke(g);
         return;
     }
 
@@ -876,6 +990,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     if (pressed_l && drawing) || pressed_r {
         g.last_tile = None;
         g.drag_erase = pressed_r || g.tool == Tool::Erase;
+        g.stroke.clear();
     }
     let dragging = (down_l && drawing) || down_r;
     if dragging && !over_ui {
@@ -889,7 +1004,10 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
             for p in tiles {
                 let r = if g.drag_erase { g.sim.erase_road(p) } else { g.sim.place_road(p) };
                 match r {
-                    EditResult::Ok => placed = true,
+                    EditResult::Ok => {
+                        placed = true;
+                        g.stroke.push((p, !g.drag_erase));
+                    }
                     EditResult::NoRoadsLeft => toast(g, "Out of road tiles. More arrive each week"),
                     EditResult::NeedBridge => toast(g, "Roads on water need a bridge upgrade"),
                     EditResult::NeedTunnel => toast(g, "Roads through hills need a tunnel upgrade"),
@@ -906,6 +1024,18 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
         }
     } else {
         g.last_tile = None;
+        end_stroke(g);
+    }
+}
+
+/// File the finished stroke on the undo stack.
+fn end_stroke(g: &mut Game) {
+    if g.stroke.is_empty() {
+        return;
+    }
+    g.undo.push(std::mem::take(&mut g.stroke));
+    if g.undo.len() > UNDO_DEPTH {
+        g.undo.remove(0);
     }
 }
 
@@ -967,7 +1097,7 @@ fn car_poses(s: &Sim) -> Vec<Option<(Vec2, Vec2)>> {
 
 /// Car poses blended between the last two simulation steps, so cars glide at any frame rate.
 fn smooth_poses(g: &Game) -> Vec<Option<(Vec2, Vec2)>> {
-    let t = if g.speed == 0 || g.sim.offer.is_some() || g.sim.game_over { 1.0 } else { (g.acc / DT).clamp(0.0, 1.0) };
+    let t = if g.speed == 0 || g.menu || g.sim.offer.is_some() || g.sim.game_over { 1.0 } else { (g.acc / DT).clamp(0.0, 1.0) };
     car_poses(&g.sim)
         .into_iter()
         .enumerate()
@@ -984,7 +1114,7 @@ fn smooth_poses(g: &Game) -> Vec<Option<(Vec2, Vec2)>> {
 
 fn step_sim(g: &mut Game) {
     let dt = get_frame_time().min(0.1);
-    g.acc += dt * g.speed as f32;
+    g.acc += if g.menu { 0.0 } else { dt * g.speed as f32 };
     let mut steps = 0;
     while g.acc >= DT && steps < 16 {
         g.prev_poses = car_poses(&g.sim);
@@ -1017,7 +1147,7 @@ fn step_sim(g: &mut Game) {
                 }
             }
             Event::NewHome | Event::NewDest => platform::play(Sfx::Pop),
-            Event::Warning => platform::play(Sfx::Warning),
+            Event::Warning | Event::RushSoon => platform::play(Sfx::Warning),
             Event::WeekEnd => platform::play(Sfx::Pick),
             Event::GameOver => {
                 g.new_best = platform::record(g.map.index(), g.sim.score);
@@ -1152,28 +1282,104 @@ fn draw_toolbar(g: &Game, btns: &[Btn], m: Vec2) {
             text_centered(label, x + w / 2.0, bar.y - 19.0, 18.0, WHITE);
         }
     }
-    if let Some(f) = g.highway_from {
-        let _ = f;
-        let label = "Click where the highway ends. Right click cancels";
-        let w = measure(label, 18.0).width + 28.0;
-        pill((uw() - w) / 2.0, bar.y - 44.0, w, 32.0, Color::new(0.30, 0.26, 0.12, 1.0));
-        text_centered(label, uw() / 2.0, bar.y - 22.0, 18.0, WHITE);
+    // Undo, floating above the left end of the bar.
+    if let Some(b) = btns.iter().find(|b| b.action == Action::Undo) {
+        let r = b.rect;
+        let c = r.center();
+        draw_circle(c.x + 1.0, c.y + 3.0, r.w / 2.0, Color::new(0.0, 0.0, 0.0, 0.10));
+        draw_circle(c.x, c.y, r.w / 2.0, if r.contains(m) { Color::new(0.93, 0.92, 0.88, 1.0) } else { PAPER });
+        draw_arc(c.x, c.y + 1.0, 24, 8.0, 200.0, 2.6, 250.0, INK);
+        draw_triangle(vec2(c.x - 13.0, c.y - 3.0), vec2(c.x - 3.0, c.y - 3.0), vec2(c.x - 8.0, c.y + 4.0), INK);
+        if r.contains(m) {
+            let label = "Undo (Z)";
+            let w = measure(label, 18.0).width + 24.0;
+            pill(r.x, r.y - 38.0, w, 30.0, INK);
+            text_centered(label, r.x + w / 2.0, r.y - 17.0, 18.0, WHITE);
+        }
+    }
+    // Rush wave: which colour, and a countdown, floating above the right end of the bar.
+    if let Some((color, t)) = g.sim.rush_countdown() {
+        let label = if t > 0.0 { format!("Rush in {}s", t.ceil() as i32) } else { "Rush hour".to_string() };
+        let w = measure(&label, 18.0).width + 48.0;
+        let (x, y) = (bar.x + bar.w - w - 4.0, bar.y - 48.0);
+        let hot = t <= 0.0 && (get_time() * 4.0).sin() > 0.0;
+        float_pill(x, y, w, 36.0, if hot { Color::new(1.0, 0.95, 0.85, 1.0) } else { PAPER });
+        draw_circle(x + 20.0, y + 18.0, 8.0, PALETTE[color]);
+        text(&label, x + 34.0, y + 25.0, 18.0, INK);
+    }
+}
+
+/// Every notice uses the same banner: dark ink with white text (well above 4.5:1 contrast),
+/// wrapped to fit, just under the top bar so it never covers the tool bar or the thumb zone.
+fn banner(msg: &str, alpha: f32) {
+    let size = toast_size();
+    let max_w = (uw() - 32.0).min(620.0);
+    let lines = wrap(msg, size, max_w - 32.0);
+    let line_h = size * 1.3;
+    let w = lines.iter().map(|l| measure(l, size).width).fold(0.0, f32::max) + 32.0;
+    let h = lines.len() as f32 * line_h + 16.0;
+    let (x, y) = ((uw() - w) / 2.0, HUD_H + 6.0);
+    rrect(x + 1.0, y + 3.0, w, h, 18.0f32.min(h / 2.0), Color::new(0.0, 0.0, 0.0, 0.12 * alpha));
+    rrect(x, y, w, h, 18.0f32.min(h / 2.0), with_alpha(INK, 0.96 * alpha));
+    for (k, l) in lines.iter().enumerate() {
+        text_centered(l, uw() / 2.0, y + 8.0 + line_h * (k as f32 + 0.78), size, with_alpha(WHITE, alpha));
     }
 }
 
 fn draw_toast(g: &Game) {
+    if g.menu {
+        return;
+    }
+    // A half-built highway keeps its instructions up until it is finished or cancelled.
+    if g.highway_from.is_some() && g.screen == Screen::Play {
+        let msg = if narrow() { "Tap where the highway ends. Tap the start again to cancel" } else { "Click where the highway ends. Right click cancels" };
+        banner(msg, 1.0);
+        return;
+    }
     let Some((msg, t)) = &g.sim.toast else { return };
-    let a = t.min(1.0);
-    let m = measure(msg, toast_size());
-    let y = if g.screen == Screen::Play && !g.sim.game_over && g.sim.offer.is_none() { bar_rect().y - 54.0 } else { uh() - 60.0 };
-    let w = m.width + 40.0;
-    let x = (uw() - w) / 2.0;
-    // Opaque fill blended toward the sky colour so pill ends never overlap visibly.
-    let sky = render3d::SKY;
-    let fill = Color::new(INK.r + (sky.r - INK.r) * (1.0 - a), INK.g + (sky.g - INK.g) * (1.0 - a), INK.b + (sky.b - INK.b) * (1.0 - a), 1.0);
-    if g.highway_from.is_none() {
-        pill(x, y, w, 38.0, fill);
-        text_centered(msg, uw() / 2.0, y + 25.0, toast_size(), Color::new(1.0, 1.0, 1.0, a));
+    banner(msg, t.min(1.0).max(0.0));
+}
+
+fn draw_menu(g: &Game, btns: &[Btn], m: Vec2) {
+    let (sw, sh) = (uw(), uh());
+    draw_rectangle(0.0, 0.0, sw, sh, Color::new(0.10, 0.12, 0.14, 0.25));
+    let c = menu_card();
+    card(c, PAPER);
+    text_centered("Paused", c.center().x, c.y + 48.0, 30.0, INK);
+    text("Camera tilt", c.x + 24.0, c.y + 208.0, 17.0, with_alpha(INK, 0.65));
+    for b in btns {
+        let r = b.rect;
+        let hovered = r.contains(m);
+        match b.action {
+            Action::Resume => {
+                pill(r.x, r.y, r.w, r.h, if hovered { Color::new(0.3, 0.3, 0.36, 1.0) } else { INK });
+                text_centered("Resume", r.center().x, r.y + 30.0, 22.0, WHITE);
+            }
+            Action::Restart | Action::Maps | Action::Mute => {
+                pill(r.x, r.y, r.w, r.h, if hovered { Color::new(0.0, 0.0, 0.0, 0.12) } else { CHIP });
+                let label = match b.action {
+                    Action::Restart => "Restart",
+                    Action::Maps => "Maps",
+                    _ if platform::muted() => "Sound: off",
+                    _ => "Sound: on",
+                };
+                text_centered(label, r.center().x, r.y + 30.0, 20.0, INK);
+            }
+            Action::Tilt(i) => {
+                let first = i == 0;
+                if first {
+                    let all = btns.iter().filter(|b| matches!(b.action, Action::Tilt(_))).map(|b| b.rect).fold(r, |a, b| a.combine_with(b));
+                    pill(all.x, all.y, all.w, all.h, CHIP);
+                }
+                if g.tilt == i {
+                    pill(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0, INK);
+                } else if hovered {
+                    pill(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0, Color::new(0.0, 0.0, 0.0, 0.08));
+                }
+                text_centered(TILTS[i].1, r.center().x, r.y + 26.0, 17.0, if g.tilt == i { WHITE } else { INK });
+            }
+            _ => {}
+        }
     }
 }
 

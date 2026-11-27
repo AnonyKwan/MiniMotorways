@@ -908,10 +908,12 @@ fn draw_home(mb: &mut Mb, p: Pos, facing: usize, col: Color, lift: f32) {
     let y = lift;
     let (w, d, h) = (0.74, 0.54, 0.36);
     let zc = -0.08; // house sits toward the back so the drive fits in front
-    // Driveway: a short paved strip from the front door to the tile edge.
-    let dw = 0.13;
-    mb.flat(&[tf(-dw - 0.03, 0.007, zc + d / 2.0 - 0.02), tf(dw + 0.03, 0.007, zc + d / 2.0 - 0.02), tf(dw + 0.03, 0.007, 0.5), tf(-dw - 0.03, 0.007, 0.5)], CURB);
-    mb.flat(&[tf(-dw, 0.013, zc + d / 2.0), tf(dw, 0.013, zc + d / 2.0), tf(dw, 0.013, 0.5), tf(-dw, 0.013, 0.5)], lighter(ASPHALT, 0.25));
+    // Driveway: the same asphalt and kerb as the roads, at road width, from the front wall
+    // to the tile edge, so it joins a road seamlessly.
+    let (cw, aw) = (0.38, 0.31);
+    let front = zc + d / 2.0;
+    mb.flat(&[tf(-cw, 0.006, front - 0.02), tf(cw, 0.006, front - 0.02), tf(cw, 0.006, 0.5), tf(-cw, 0.006, 0.5)], CURB);
+    mb.flat(&[tf(-aw, 0.012, front), tf(aw, 0.012, front), tf(aw, 0.012, 0.5), tf(-aw, 0.012, 0.5)], ASPHALT);
     if lift == 0.0 {
         let a = tf(-w / 2.0, 0.0, zc - d / 2.0);
         let b = tf(w / 2.0, 0.0, zc + d / 2.0);
@@ -957,8 +959,10 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     // Car park across the shop's front row: kerb, asphalt, and painted bays between driveways.
     let front = (o.1 + d.size.1) as f32;
     let (lx0, lx1) = (o.0 as f32 + 0.04, (o.0 + d.size.0) as f32 - 0.04);
-    mb.rect_y(lx0, front - 0.06, lx1, front + 0.92, y + 0.006, CURB);
-    mb.rect_y(lx0 + 0.06, front, lx1 - 0.06, front + 0.86, y + 0.012, ASPHALT);
+    // The lot runs right up to the shop front, like a house's driveway.
+    let shop_front = front - 0.22;
+    mb.rect_y(lx0, shop_front - 0.02, lx1, front + 0.92, y + 0.006, CURB);
+    mb.rect_y(lx0 + 0.06, shop_front, lx1 - 0.06, front + 0.86, y + 0.012, ASPHALT);
     for k in 0..d.size.0 {
         let tx = (o.0 + k) as f32;
         if d.doors.iter().any(|p| p.0 == o.0 + k) {

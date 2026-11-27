@@ -19,8 +19,9 @@ pub const START_ROADS: u32 = 30;
 pub const ROADS_PER_WEEK: u32 = 15;
 pub const MAX_COLORS: usize = 6;
 
-pub const DEST_W: i32 = 3;
-pub const DEST_H: i32 = 2;
+/// Footprint of a small shop (one driveway) and a big shop (two driveways).
+pub const SMALL_SHOP: (i32, i32) = (3, 2);
+pub const BIG_SHOP: (i32, i32) = (4, 2);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Cell {
@@ -37,13 +38,18 @@ pub struct Home {
     pub color: usize,
     /// Sim time when it appeared, for the arrival animation.
     pub born: f32,
+    /// Index into DIRS of the side the driveway is on. Cars can only use that side.
+    pub facing: usize,
 }
 
 #[derive(Clone, Debug)]
 pub struct Dest {
     /// Top-left tile of the footprint.
     pub origin: Pos,
-    pub door: Pos,
+    /// Footprint in tiles (width, height).
+    pub size: (i32, i32),
+    /// Driveway tiles along the front edge: one for a small shop, two for a big one.
+    pub doors: Vec<Pos>,
     /// Sim time when it appeared, for the arrival animation.
     pub born: f32,
     pub color: usize,
@@ -54,6 +60,20 @@ pub struct Dest {
     /// 0..1, game over at 1.
     pub overflow: f32,
     pub pin_timer: f32,
+}
+
+impl Dest {
+    pub fn big(&self) -> bool {
+        self.doors.len() > 1
+    }
+    /// Pins a destination can hold before its overflow timer starts.
+    pub fn pin_limit(&self) -> u32 {
+        if self.big() {
+            PIN_LIMIT + 2
+        } else {
+            PIN_LIMIT
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -190,6 +210,7 @@ impl Sim {
         self.cells[idx(p)] = Cell::Road;
         self.roads_left -= 1;
         self.roads_dirty = true;
+        self.update_facings_near(p);
         EditResult::Ok
     }
 
@@ -206,6 +227,7 @@ impl Sim {
         self.cells[idx(p)] = Cell::Empty;
         self.roads_left += 1;
         self.roads_dirty = true;
+        self.update_facings_near(p);
         EditResult::Ok
     }
 
@@ -216,18 +238,18 @@ impl Sim {
 
     // ----- Spawning ----------------------------------------------------
 
-    fn footprint_free(&self, origin: Pos, door: Pos) -> bool {
-        // The footprint, its door and a one-tile margin must be clear of buildings,
-        // and the footprint and door must sit on empty grass.
-        for y in origin.1 - 1..=origin.1 + DEST_H {
-            for x in origin.0 - 1..=origin.0 + DEST_W {
+    fn footprint_free(&self, origin: Pos, size: (i32, i32), doors: &[Pos]) -> bool {
+        // The footprint, its driveways and a one-tile margin must be clear of buildings,
+        // and the footprint and driveways must sit on empty grass.
+        for y in origin.1 - 1..=origin.1 + size.1 {
+            for x in origin.0 - 1..=origin.0 + size.0 {
                 let p = (x, y);
                 if !in_bounds(p) {
                     return false;
                 }
-                let inside = x >= origin.0 && x < origin.0 + DEST_W && y >= origin.1 && y < origin.1 + DEST_H;
+                let inside = x >= origin.0 && x < origin.0 + size.0 && y >= origin.1 && y < origin.1 + size.1;
                 let c = self.cells[idx(p)];
-                if inside || p == door {
+                if inside || doors.contains(&p) {
                     if c != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass {
                         return false;
                     }
@@ -239,22 +261,31 @@ impl Sim {
         true
     }
 
-    fn place_dest(&mut self, color: usize, origin: Pos) -> Option<usize> {
-        let door = (origin.0 + 1, origin.1 + DEST_H);
-        if !self.footprint_free(origin, door) {
+    fn place_dest(&mut self, color: usize, origin: Pos, big: bool) -> Option<usize> {
+        let size = if big { BIG_SHOP } else { SMALL_SHOP };
+        let front = origin.1 + size.1;
+        let doors: Vec<Pos> = if big {
+            vec![(origin.0, front), (origin.0 + size.0 - 1, front)]
+        } else {
+            vec![(origin.0 + 1, front)]
+        };
+        if !self.footprint_free(origin, size, &doors) {
             return None;
         }
         let id = self.dests.len();
-        for y in origin.1..origin.1 + DEST_H {
-            for x in origin.0..origin.0 + DEST_W {
+        for y in origin.1..origin.1 + size.1 {
+            for x in origin.0..origin.0 + size.0 {
                 self.cells[idx((x, y))] = Cell::Dest(id);
             }
         }
-        self.cells[idx(door)] = Cell::Door(id);
+        for d in &doors {
+            self.cells[idx(*d)] = Cell::Door(id);
+        }
         self.dests.push(Dest {
             born: self.time,
             origin,
-            door,
+            size,
+            doors,
             color,
             pins: 0,
             assigned: 0,
@@ -278,7 +309,7 @@ impl Sim {
             }
             while !options.is_empty() {
                 let o = options.swap_remove(self.rng.below(options.len()));
-                if let Some(id) = self.place_dest(color, o) {
+                if let Some(id) = self.place_dest(color, o, false) {
                     return Some(id);
                 }
             }
@@ -298,17 +329,20 @@ impl Sim {
         let min = *counts.iter().min().unwrap_or(&0);
         let choices: Vec<usize> = (0..n).filter(|c| counts[*c] == min).collect();
         let color = choices[self.rng.below(choices.len())];
+        // Big shops (two driveways, busier) start appearing from week 2.
+        let big = self.week >= 2 && self.rng.f32() < 0.35;
+        let size = if big { BIG_SHOP } else { SMALL_SHOP };
         for _ in 0..200 {
             let o = (
-                1 + self.rng.below((W - DEST_W - 2) as usize) as i32,
-                1 + self.rng.below((H - DEST_H - 3) as usize) as i32,
+                1 + self.rng.below((W - size.0 - 2) as usize) as i32,
+                1 + self.rng.below((H - size.1 - 3) as usize) as i32,
             );
             // Keep destinations apart so the map stays readable.
             let far = self.dests.iter().all(|d| {
                 (d.origin.0 - o.0).abs() + (d.origin.1 - o.1).abs() >= 7
             });
             if far {
-                if let Some(id) = self.place_dest(color, o) {
+                if let Some(id) = self.place_dest(color, o, big) {
                     return Some(id);
                 }
             }
@@ -319,7 +353,7 @@ impl Sim {
     /// Place a home of the destination's colour a few tiles away from it.
     pub fn spawn_home(&mut self, dest: usize) -> Option<usize> {
         let d = &self.dests[dest];
-        let (door, color) = (d.door, d.color);
+        let (door, color) = (d.doors[0], d.color);
         let mut options = Vec::new();
         for y in door.1 - 9..=door.1 + 9 {
             for x in door.0 - 12..=door.0 + 12 {
@@ -351,27 +385,38 @@ impl Sim {
             return None;
         }
         let p = options[self.rng.below(options.len())];
-        let id = self.homes.len();
-        self.cells[idx(p)] = Cell::Home(id);
-        self.homes.push(Home { pos: p, color, born: self.time });
-        self.cars.push(Car {
-            state: CarState::Idle,
-            path: vec![p],
-            i: 0,
-            progress: 1.0,
-            prev: p,
-            cur: p,
-            slot: None,
-            retry: 0.0,
-        });
-        Some(id)
+        Some(self.add_home_facing(p, color, Some(door)))
     }
 
     /// Place a home directly, for tests and scripted setups.
     pub fn add_home(&mut self, p: Pos, color: usize) -> usize {
+        self.add_home_facing(p, color, None)
+    }
+
+    /// Place a home. Its driveway starts on the open side facing `toward` (if given),
+    /// and turns later to meet the first road the player draws beside it.
+    fn add_home_facing(&mut self, p: Pos, color: usize, toward: Option<Pos>) -> usize {
         let id = self.homes.len();
         self.cells[idx(p)] = Cell::Home(id);
-        self.homes.push(Home { pos: p, color, born: self.time });
+        let mut facing = 1;
+        let mut best = i32::MAX;
+        for (k, d) in DIRS.iter().enumerate() {
+            let n = (p.0 + d.0, p.1 + d.1);
+            let open = in_bounds(n) && matches!(self.cells[idx(n)], Cell::Empty | Cell::Road) && self.terrain[idx(n)] == Terrain::Grass;
+            if !open {
+                continue;
+            }
+            let score = match toward {
+                Some(t) => (t.0 - n.0).abs() + (t.1 - n.1).abs(),
+                None => if k == 1 { 0 } else { 1 },
+            };
+            if score < best {
+                best = score;
+                facing = k;
+            }
+        }
+        self.homes.push(Home { pos: p, color, born: self.time, facing });
+        self.update_facing(id);
         self.cars.push(Car {
             state: CarState::Idle,
             path: vec![p],
@@ -387,7 +432,56 @@ impl Sim {
 
     /// Place a destination directly, for tests and scripted setups.
     pub fn add_dest(&mut self, origin: Pos, color: usize) -> Option<usize> {
-        self.place_dest(color, origin)
+        self.place_dest(color, origin, false)
+    }
+
+    /// Place a big two-driveway shop directly, for tests and scripted setups.
+    pub fn add_big_dest(&mut self, origin: Pos, color: usize) -> Option<usize> {
+        self.place_dest(color, origin, true)
+    }
+
+    /// The tile a home's driveway leads to.
+    pub fn driveway(&self, h: usize) -> Pos {
+        let home = &self.homes[h];
+        let d = DIRS[home.facing];
+        (home.pos.0 + d.0, home.pos.1 + d.1)
+    }
+
+    /// Keep a home's driveway if a road meets it; otherwise turn it toward a road beside the house.
+    fn update_facing(&mut self, h: usize) {
+        let p = self.homes[h].pos;
+        let joined = |s: &Self, n: Pos| in_bounds(n) && matches!(s.cells[idx(n)], Cell::Road);
+        if joined(self, self.driveway(h)) {
+            return;
+        }
+        // Don't swing the driveway around while the family car is out.
+        if self.cars.get(h).is_some_and(|c| c.state != CarState::Idle) {
+            return;
+        }
+        for k in 0..4 {
+            let d = DIRS[k];
+            if joined(self, (p.0 + d.0, p.1 + d.1)) {
+                self.homes[h].facing = k;
+                return;
+            }
+        }
+    }
+
+    fn update_facings_near(&mut self, p: Pos) {
+        for d in DIRS {
+            if let Cell::Home(h) = self.cell((p.0 + d.0, p.1 + d.1)) {
+                self.update_facing(h);
+            }
+        }
+    }
+
+    /// Whether a car may move between neighbouring tiles a and b (houses only via their driveway).
+    fn link_ok(&self, a: Pos, b: Pos) -> bool {
+        let ok = |h: Pos, other: Pos| match self.cells[idx(h)] {
+            Cell::Home(id) => self.driveway(id) == other,
+            _ => true,
+        };
+        ok(a, b) && ok(b, a)
     }
 
     // ----- Pathfinding -------------------------------------------------
@@ -427,7 +521,7 @@ impl Sim {
                 }
                 let qi = idx(q);
                 let enterable = self.cells[qi] == Cell::Road || is_goal(q);
-                if !enterable {
+                if !enterable || !self.link_ok(p, q) {
                     continue;
                 }
                 let cost = d + 10 + 6 * self.tile_occupancy(q);
@@ -446,8 +540,8 @@ impl Sim {
         let start = car.cur;
         let path = match car.state {
             CarState::ToDest(d) => {
-                let door = self.dests[d].door;
-                self.find_path(start, &|p| p == door)
+                let doors = self.dests[d].doors.clone();
+                self.find_path(start, &|p| doors.contains(&p))
             }
             CarState::ToHome => {
                 let home = self.homes[c].pos;
@@ -562,10 +656,10 @@ impl Sim {
             let d = &mut self.dests[i];
             d.pin_timer -= dt;
             if d.pin_timer <= 0.0 {
-                d.pin_timer = interval * jitter;
+                d.pin_timer = interval * jitter / if d.big() { 1.6 } else { 1.0 };
                 d.pins += 1;
             }
-            if d.pins > PIN_LIMIT {
+            if d.pins > d.pin_limit() {
                 d.overflow += dt / OVERFLOW_TIME;
             } else {
                 d.overflow = (d.overflow - dt / (OVERFLOW_TIME * 0.5)).max(0.0);
@@ -581,16 +675,22 @@ impl Sim {
         for d in 0..self.dests.len() {
             while self.dests[d].pins > self.dests[d].assigned {
                 let color = self.dests[d].color;
-                let door = self.dests[d].door;
-                let found = {
+                // Search from each driveway and keep the nearest idle matching car.
+                let mut found: Option<Vec<Pos>> = None;
+                for door in self.dests[d].doors.clone() {
                     let cells = &self.cells;
                     let homes = &self.homes;
                     let cars = &self.cars;
-                    self.find_path(door, &|p| match cells[idx(p)] {
+                    let p = self.find_path(door, &|p| match cells[idx(p)] {
                         Cell::Home(h) => homes[h].color == color && cars[h].state == CarState::Idle,
                         _ => false,
-                    })
-                };
+                    });
+                    if let Some(p) = p {
+                        if found.as_ref().is_none_or(|f| p.len() < f.len()) {
+                            found = Some(p);
+                        }
+                    }
+                }
                 let Some(mut path) = found else { break };
                 path.reverse();
                 let h = match self.cells[idx(path[0])] {
@@ -741,7 +841,7 @@ mod tests {
     fn connected_setup() -> Sim {
         let mut s = Sim::empty(3);
         let d = s.add_dest((10, 5), 0).unwrap();
-        assert_eq!(s.dests[d].door, (11, 7));
+        assert_eq!(s.dests[d].doors, vec![(11, 7)]);
         s.add_home((11, 12), 0);
         for y in 8..=11 {
             assert_eq!(s.place_road((11, y)), EditResult::Ok);
@@ -833,6 +933,67 @@ mod tests {
         }
         run(&mut s, 20.0);
         assert!(s.score >= 5, "score was {}", s.score);
+    }
+
+    #[test]
+    fn house_turns_to_face_the_first_road() {
+        let mut s = Sim::empty(5);
+        let h = s.add_home((10, 10), 0);
+        assert_eq!(s.homes[h].facing, 1); // starts facing down
+        s.place_road((9, 10)); // road on the left
+        assert_eq!(s.driveway(h), (9, 10));
+        // A second road elsewhere doesn't steal the driveway.
+        s.place_road((11, 10));
+        assert_eq!(s.driveway(h), (9, 10));
+        // Removing the joined road lets it turn to the remaining one.
+        s.erase_road((9, 10));
+        assert_eq!(s.driveway(h), (11, 10));
+    }
+
+    #[test]
+    fn cars_only_use_the_driveway() {
+        // Road passes beside the house on two sides but only one is the driveway.
+        let mut s = Sim::empty(6);
+        s.add_dest((10, 5), 0).unwrap(); // driveway (11,7)
+        let h = s.add_home((12, 10), 0);
+        for y in 8..=11 {
+            s.place_road((11, y));
+        }
+        assert_eq!(s.driveway(h), (11, 10));
+        // A road on the house's other side, not connected to the shop, is ignored.
+        s.place_road((13, 10));
+        assert_eq!(s.driveway(h), (11, 10));
+        s.dests[0].pins = 1;
+        run(&mut s, 8.0);
+        assert!(s.score >= 1);
+        // Cars never stepped onto the non-driveway road.
+        assert_eq!(s.occ[idx((13, 10)) * 4..idx((13, 10)) * 4 + 4], [false; 4]);
+    }
+
+    #[test]
+    fn a_path_cannot_cut_through_a_house() {
+        let mut s = Sim::empty(7);
+        let h = s.add_home((10, 10), 0);
+        s.place_road((9, 10));
+        s.place_road((11, 10));
+        assert_eq!(s.driveway(h), (9, 10));
+        assert!(s.find_path((9, 10), &|p| p == (11, 10)).is_none());
+    }
+
+    #[test]
+    fn big_shop_has_two_driveways_and_either_works() {
+        let mut s = Sim::empty(8);
+        let d = s.add_big_dest((10, 5), 0).unwrap();
+        assert_eq!(s.dests[d].doors, vec![(10, 7), (13, 7)]);
+        assert!(s.dests[d].big());
+        // Home connected only to the right-hand driveway.
+        s.add_home((13, 11), 0);
+        for y in 8..=10 {
+            s.place_road((13, y));
+        }
+        s.dests[d].pins = 2;
+        run(&mut s, 10.0);
+        assert!(s.score >= 2, "score was {}", s.score);
     }
 
     #[test]

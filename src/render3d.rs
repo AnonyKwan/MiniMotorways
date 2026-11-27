@@ -2,7 +2,7 @@
 //! Everything is built from flat-shaded low-poly meshes generated each frame, so no model
 //! or image files are needed. Lighting is baked per face from a single sun direction.
 use little_lanes::map::{idx, Pos, Terrain, DIRS, H, W};
-use little_lanes::sim::{Car, CarState, Cell, Sim, DEST_H, DEST_W, PIN_LIMIT};
+use little_lanes::sim::{Car, CarState, Cell, Dest, Sim};
 use macroquad::models::{draw_mesh, Mesh, Vertex};
 use macroquad::prelude::*;
 
@@ -73,8 +73,8 @@ pub struct Scene {
 impl Scene {
     pub fn new(hud_h: f32) -> Scene {
         let (sw, sh) = (screen_width(), screen_height());
-        let fovy: f32 = 22f32.to_radians();
-        let pitch: f32 = 60f32.to_radians();
+        let fovy: f32 = 34f32.to_radians();
+        let pitch: f32 = 90f32.to_radians();
         let margin = 10.0;
         let corners = [
             vec3(0.0, 0.0, 0.0),
@@ -83,11 +83,12 @@ impl Scene {
             vec3(W as f32, BASE_Y, H as f32),
         ];
         let build = |target: Vec3, dist: f32| {
-            let position = target + vec3(0.0, pitch.sin(), pitch.cos()) * dist;
+            let position = target + vec3(0.0, pitch.sin(), pitch.cos().max(0.0)) * dist;
             let cam = Camera3D {
                 position,
                 target,
-                up: vec3(0.0, 1.0, 0.0),
+                // Looking straight down, so "up" on screen is the board's far (-z) edge.
+                up: vec3(0.0, 0.0, -1.0),
                 fovy,
                 z_near: 1.0,
                 z_far: dist * 3.0,
@@ -173,7 +174,7 @@ fn shade(c: Color, n: Vec3) -> Color {
         return c;
     }
     let d = n.dot(sun()).max(0.0);
-    let k = 0.5 + 0.5 * d;
+    let k = 0.42 + 0.58 * d;
     // A touch of cool sky light on faces turned away from the sun.
     let sky = (1.0 - d) * 0.05;
     Color::new((c.r * k + sky * 0.6).min(1.0), (c.g * k + sky * 0.8).min(1.0), (c.b * k + sky).min(1.0), 1.0)
@@ -254,17 +255,6 @@ impl Mb {
 
     fn abox(&mut self, min: Vec3, max: Vec3, c: Color) {
         self.boxx((min + max) * 0.5, max - min, vec2(1.0, 0.0), c);
-    }
-
-    /// Gable roof sitting on y = `y0`, ridge running along x.
-    fn gable(&mut self, cx: f32, cz: f32, y0: f32, w: f32, d: f32, h: f32, c: Color) {
-        let (x0, x1, z0, z1) = (cx - w / 2.0, cx + w / 2.0, cz - d / 2.0, cz + d / 2.0);
-        let top = y0 + h;
-        let inside = vec3(cx, y0 + h * 0.3, cz);
-        self.poly(&[vec3(x0, y0, z0), vec3(x1, y0, z0), vec3(x1, top, cz), vec3(x0, top, cz)], inside, c);
-        self.poly(&[vec3(x0, y0, z1), vec3(x1, y0, z1), vec3(x1, top, cz), vec3(x0, top, cz)], inside, c);
-        self.poly(&[vec3(x0, y0, z0), vec3(x0, y0, z1), vec3(x0, top, cz)], inside, lighter(c, 0.1));
-        self.poly(&[vec3(x1, y0, z0), vec3(x1, y0, z1), vec3(x1, top, cz)], inside, lighter(c, 0.1));
     }
 
     /// Cone (or a low-poly blob when `under` > 0, adding an inverted cone beneath).
@@ -511,10 +501,12 @@ fn draw_terrain(mb: &mut Mb, s: &Sim, time: f32) {
 
 // ---- Roads --------------------------------------------------------------------
 
-fn connects(s: &Sim, from: Cell, to: Pos) -> bool {
+fn connects(s: &Sim, from: Cell, from_pos: Pos, to: Pos) -> bool {
     match s.cell(to) {
         Cell::Road => true,
-        Cell::Home(_) | Cell::Door(_) => from == Cell::Road,
+        // Houses join the road only through their driveway.
+        Cell::Home(h) => from == Cell::Road && s.driveway(h) == from_pos,
+        Cell::Door(_) => from == Cell::Road,
         Cell::Dest(id) => matches!(from, Cell::Door(d) if d == id),
         Cell::Empty => false,
     }
@@ -530,7 +522,7 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                 }
                 let ctr = vec3(x as f32 + 0.5, y, z as f32 + 0.5);
                 mb.disk(ctr, w, 16, c);
-                let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, cell, (x + d.0, z + d.1))).collect();
+                let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, cell, (x, z), (x + d.0, z + d.1))).collect();
                 for d in &links {
                     let (dx, dz) = (d.0 as f32, d.1 as f32);
                     let end = ctr + vec3(dx * 0.5, 0.0, dz * 0.5);
@@ -589,50 +581,87 @@ fn drop_height(age: f32) -> f32 {
     }
 }
 
-fn draw_home(mb: &mut Mb, p: Pos, col: Color, lift: f32) {
-    let (cx, cz) = (p.0 as f32 + 0.5, p.1 as f32 + 0.5);
+/// A house that faces its driveway, with a pitched roof, chimney and a paved drive.
+fn draw_home(mb: &mut Mb, p: Pos, facing: usize, col: Color, lift: f32) {
+    let c = vec3(p.0 as f32 + 0.5, 0.0, p.1 as f32 + 0.5);
+    let f = vec2(DIRS[facing].0 as f32, DIRS[facing].1 as f32);
+    let r = vec2(-f.y, f.x);
+    // Local frame: lx to the house's right, lz toward the driveway.
+    let tf = |lx: f32, ly: f32, lz: f32| c + vec3(r.x * lx + f.x * lz, ly, r.y * lx + f.y * lz);
     let y = lift;
-    let (w, d, h) = (0.72, 0.6, 0.42);
+    let (w, d, h) = (0.74, 0.54, 0.36);
+    let zc = -0.08; // house sits toward the back so the drive fits in front
+    // Driveway: a short paved strip from the front door to the tile edge.
+    let dw = 0.13;
+    mb.flat(&[tf(-dw - 0.03, 0.007, zc + d / 2.0 - 0.02), tf(dw + 0.03, 0.007, zc + d / 2.0 - 0.02), tf(dw + 0.03, 0.007, 0.5), tf(-dw - 0.03, 0.007, 0.5)], CURB);
+    mb.flat(&[tf(-dw, 0.013, zc + d / 2.0), tf(dw, 0.013, zc + d / 2.0), tf(dw, 0.013, 0.5), tf(-dw, 0.013, 0.5)], lighter(ASPHALT, 0.25));
     if lift == 0.0 {
-        shadow_rect(mb, cx - w / 2.0, cz - d / 2.0, cx + w / 2.0, cz + d / 2.0, h + 0.25);
+        let a = tf(-w / 2.0, 0.0, zc - d / 2.0);
+        let b = tf(w / 2.0, 0.0, zc + d / 2.0);
+        shadow_rect(mb, a.x.min(b.x), a.z.min(b.z), a.x.max(b.x), a.z.max(b.z), h + 0.32);
     }
-    mb.abox(vec3(cx - w / 2.0, y, cz - d / 2.0), vec3(cx + w / 2.0, y + h, cz + d / 2.0), WALL);
-    // Door and windows on the front (+z) face
-    let f = cz + d / 2.0 + 0.005;
-    mb.poly_n(&[vec3(cx - 0.06, y, f), vec3(cx + 0.06, y, f), vec3(cx + 0.06, y + 0.2, f), vec3(cx - 0.06, y + 0.2, f)], Vec3::Z, darker(col, 0.55));
-    for wx in [cx - 0.23, cx + 0.23] {
-        mb.poly_n(&[vec3(wx - 0.06, y + 0.14, f), vec3(wx + 0.06, y + 0.14, f), vec3(wx + 0.06, y + 0.25, f), vec3(wx - 0.06, y + 0.25, f)], Vec3::Z, WINDOW);
+    // Walls
+    let wc = tf(0.0, y + h / 2.0, zc);
+    mb.boxx(wc, vec3(w, h, d), r, WALL);
+    // Front door and windows
+    let fz = zc + d / 2.0 + 0.006;
+    mb.poly_n(&[tf(-0.06, y, fz), tf(0.06, y, fz), tf(0.06, y + 0.2, fz), tf(-0.06, y + 0.2, fz)], vec3(f.x, 0.0, f.y), darker(col, 0.55));
+    for wx in [-0.2, 0.2] {
+        mb.poly_n(&[tf(wx - 0.06, y + 0.12, fz), tf(wx + 0.06, y + 0.12, fz), tf(wx + 0.06, y + 0.24, fz), tf(wx - 0.06, y + 0.24, fz)], vec3(f.x, 0.0, f.y), WINDOW);
     }
-    mb.gable(cx, cz, y + h, w + 0.12, d + 0.14, 0.4, col);
-    mb.abox(vec3(cx + 0.16, y + h + 0.1, cz - 0.16), vec3(cx + 0.26, y + h + 0.38, cz - 0.06), darker(col, 0.6));
+    // Pitched roof: ridge runs parallel to the front, eaves overhang the walls.
+    let (rw, rd, rh) = (w / 2.0 + 0.06, d / 2.0 + 0.08, 0.3);
+    let y0 = y + h;
+    let inside = tf(0.0, y0 + 0.05, zc);
+    let ridge_a = tf(-rw, y0 + rh, zc);
+    let ridge_b = tf(rw, y0 + rh, zc);
+    mb.poly(&[tf(-rw, y0, zc + rd), tf(rw, y0, zc + rd), ridge_b, ridge_a], inside, col);
+    mb.poly(&[tf(-rw, y0, zc - rd), tf(rw, y0, zc - rd), ridge_b, ridge_a], inside, col);
+    mb.poly(&[tf(-rw, y0, zc - rd), tf(-rw, y0, zc + rd), ridge_a], inside, darker(col, 0.8));
+    mb.poly(&[tf(rw, y0, zc - rd), tf(rw, y0, zc + rd), ridge_b], inside, darker(col, 0.8));
+    // Ridge cap
+    mb.boxx(tf(0.0, y0 + rh + 0.01, zc), vec3(rw * 2.0 + 0.02, 0.03, 0.05), r, lighter(col, 0.35));
+    // Chimney
+    mb.boxx(tf(0.18, y0 + 0.24, zc - 0.12), vec3(0.09, 0.3, 0.09), r, darker(col, 0.55));
 }
 
-fn draw_shop(mb: &mut Mb, o: Pos, col: Color, lift: f32) {
+/// A shop: flat roof with rooftop units and a sign, striped awning over the front,
+/// and an entrance facing each of its fixed driveways.
+fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
+    let o = d.origin;
     let (x0, z0) = (o.0 as f32 + 0.1, o.1 as f32 + 0.08);
-    let (x1, z1) = (o.0 as f32 + DEST_W as f32 - 0.1, o.1 as f32 + DEST_H as f32 - 0.22);
+    let (x1, z1) = (o.0 as f32 + d.size.0 as f32 - 0.1, o.1 as f32 + d.size.1 as f32 - 0.22);
     let y = lift;
-    let h = 0.72;
+    let h = if d.big() { 0.95 } else { 0.72 };
     if lift == 0.0 {
         shadow_rect(mb, x0, z0, x1, z1, h + 0.3);
     }
+    let grey = Color::new(0.82, 0.83, 0.85, 1.0);
     // Body and flat roof with a parapet
     mb.abox(vec3(x0, y, z0), vec3(x1, y + h, z1), lighter(col, 0.55));
-    mb.abox(vec3(x0 - 0.04, y + h, z0 - 0.04), vec3(x1 + 0.04, y + h + 0.08, z1 + 0.04), darker(col, 0.85));
-    mb.rect_y(x0 + 0.06, z0 + 0.06, x1 - 0.06, z1 - 0.06, y + h + 0.081, lighter(col, 0.2));
+    mb.abox(vec3(x0 - 0.04, y + h, z0 - 0.04), vec3(x1 + 0.04, y + h + 0.08, z1 + 0.04), darker(col, 0.8));
+    mb.rect_y(x0 + 0.07, z0 + 0.07, x1 - 0.07, z1 - 0.07, y + h + 0.081, lighter(col, 0.25));
     // Rooftop units
-    mb.abox(vec3(x0 + 0.25, y + h + 0.08, z0 + 0.2), vec3(x0 + 0.65, y + h + 0.26, z0 + 0.5), Color::new(0.82, 0.83, 0.85, 1.0));
-    mb.cone(vec3(x1 - 0.45, y + h + 0.08, z0 + 0.4), 0.16, 0.12, 0.0, 8, 0.0, Color::new(0.78, 0.79, 0.82, 1.0));
-    // Big sign on the roof edge
-    mb.abox(vec3((x0 + x1) / 2.0 - 0.5, y + h + 0.08, z1 - 0.12), vec3((x0 + x1) / 2.0 + 0.5, y + h + 0.38, z1 - 0.04), col);
-    // Shop front: windows, door, striped awning
-    let f = z1 + 0.005;
-    let mid = (x0 + x1) / 2.0;
-    for (a, b) in [(x0 + 0.15, mid - 0.3), (mid + 0.3, x1 - 0.15)] {
-        mb.poly_n(&[vec3(a, y + 0.1, f), vec3(b, y + 0.1, f), vec3(b, y + 0.45, f), vec3(a, y + 0.45, f)], Vec3::Z, WINDOW);
+    mb.abox(vec3(x0 + 0.25, y + h + 0.08, z0 + 0.2), vec3(x0 + 0.7, y + h + 0.3, z0 + 0.55), grey);
+    mb.abox(vec3(x0 + 0.3, y + h + 0.3, z0 + 0.25), vec3(x0 + 0.65, y + h + 0.32, z0 + 0.5), darker(grey, 0.85));
+    mb.cone(vec3(x1 - 0.45, y + h + 0.08, z0 + 0.42), 0.17, 0.14, 0.0, 10, 0.0, grey);
+    if d.big() {
+        // A skylight strip across the larger roof
+        mb.abox(vec3(x0 + 1.0, y + h + 0.08, z0 + 0.3), vec3(x1 - 1.0, y + h + 0.18, z0 + 0.6), WINDOW);
     }
-    mb.poly_n(&[vec3(mid - 0.16, y, f), vec3(mid + 0.16, y, f), vec3(mid + 0.16, y + 0.4, f), vec3(mid - 0.16, y + 0.4, f)], Vec3::Z, darker(col, 0.5));
-    let stripes = 12;
-    let (ay0, ay1, out) = (y + 0.62, y + 0.5, 0.22);
+    // Sign along the roof's front edge
+    let mid = (x0 + x1) / 2.0;
+    mb.abox(vec3(mid - 0.55, y + h + 0.08, z1 - 0.14), vec3(mid + 0.55, y + h + 0.4, z1 - 0.05), col);
+    mb.abox(vec3(mid - 0.45, y + h + 0.16, z1 - 0.045), vec3(mid + 0.45, y + h + 0.32, z1 - 0.035), WHITE);
+    // Shop front: windows, an entrance per driveway, striped awning
+    let f = z1 + 0.005;
+    mb.poly_n(&[vec3(x0 + 0.12, y + 0.1, f), vec3(x1 - 0.12, y + 0.1, f), vec3(x1 - 0.12, y + 0.45, f), vec3(x0 + 0.12, y + 0.45, f)], Vec3::Z, WINDOW);
+    for door in &d.doors {
+        let dx = door.0 as f32 + 0.5;
+        mb.poly_n(&[vec3(dx - 0.16, y, f + 0.001), vec3(dx + 0.16, y, f + 0.001), vec3(dx + 0.16, y + 0.42, f + 0.001), vec3(dx - 0.16, y + 0.42, f + 0.001)], Vec3::Z, darker(col, 0.5));
+    }
+    let stripes = (d.size.0 * 4) as usize;
+    let (ay0, ay1, out) = (y + 0.62, y + 0.5, 0.24);
     for k in 0..stripes {
         let a = x0 + (x1 - x0) * k as f32 / stripes as f32;
         let b = x0 + (x1 - x0) * (k + 1) as f32 / stripes as f32;
@@ -743,10 +772,10 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight) {
     draw_terrain(&mut mb, s, time);
     draw_roads(&mut mb, s);
     for d in &s.dests {
-        draw_shop(&mut mb, d.origin, PALETTE[d.color], drop_height(s.time - d.born));
+        draw_shop(&mut mb, d, PALETTE[d.color], drop_height(s.time - d.born));
     }
     for h in &s.homes {
-        draw_home(&mut mb, h.pos, PALETTE[h.color], drop_height(s.time - h.born));
+        draw_home(&mut mb, h.pos, h.facing, PALETTE[h.color], drop_height(s.time - h.born));
     }
     draw_trees(&mut mb, s);
     draw_cars(&mut mb, s);
@@ -764,7 +793,7 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight) {
 pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32) {
     for (i, d) in s.dests.iter().enumerate() {
         let col = PALETTE[d.color];
-        let top = vec3(d.origin.0 as f32 + DEST_W as f32 / 2.0, 1.25 + drop_height(s.time - d.born), d.origin.1 as f32 + 0.6);
+        let top = vec3(d.origin.0 as f32 + d.size.0 as f32 / 2.0, 1.4 + drop_height(s.time - d.born), d.origin.1 as f32 + 0.3);
         let c = sc.to_screen(top);
         let unit = (sc.to_screen(top + vec3(1.0, 0.0, 0.0)) - c).length();
         let n = d.pins.min(12) as usize;
@@ -795,8 +824,8 @@ pub fn draw_overlays(s: &Sim, sc: &Scene, time: f32) {
                 }
             }
         }
-        if d.overflow > 0.0 || d.pins > PIN_LIMIT {
-            let g = vec3(d.origin.0 as f32 + DEST_W as f32 / 2.0, 0.05, d.origin.1 as f32 + DEST_H as f32 / 2.0);
+        if d.overflow > 0.0 || d.pins > d.pin_limit() {
+            let g = vec3(d.origin.0 as f32 + d.size.0 as f32 / 2.0, 0.05, d.origin.1 as f32 + d.size.1 as f32 / 2.0);
             let gc = sc.to_screen(g);
             let rad = (sc.to_screen(g + vec3(2.0, 0.0, 0.0)) - gc).length();
             draw_poly_lines(gc.x, gc.y, 64, rad, 0.0, 8.0, alpha(Color::new(0.2, 0.1, 0.1, 1.0), 0.18));

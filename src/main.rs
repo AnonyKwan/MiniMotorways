@@ -925,7 +925,8 @@ fn tool_click(g: &mut Game, t: Pos) {
                 EditResult::Ok => platform::play(Sfx::Pop),
                 EditResult::NoneLeft => g.select_tool(g.tool),
                 EditResult::Blocked => {
-                    toast(g, "Place it on a road tile");
+                    let msg = if g.sim.cell(t) == Cell::Road { "A roundabout needs its corners clear of buildings" } else { "Place it on a road tile" };
+                    toast(g, msg);
                     g.flash = Some((t, 0.3));
                 }
                 _ => {}

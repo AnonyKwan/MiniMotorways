@@ -630,15 +630,21 @@ fn road_h(s: &Sim, p: Pos) -> f32 {
     }
 }
 
+/// How much wider than a road a roundabout's ring is, in tiles.
+const ROUNDABOUT_GROW: f32 = 0.42;
+/// Radius of the circle cars follow round a roundabout (before their lane offset).
+const ROUNDABOUT_LANE: f32 = 0.5;
+
 /// Bridge decks stand clear of the water; the road ramps up to them on the bank tile.
 const BRIDGE_Y: f32 = 0.24;
 
-const HWY_Y: f32 = 0.7;
-const RAMP: f32 = 0.9;
+const HWY_Y: f32 = 1.0;
+const RAMP: f32 = 1.2;
 
 /// Height along a highway at distance `d` from its start, with ramps at both ends.
 fn hwy_height(d: f32, len: f32) -> f32 {
-    let up = (d / RAMP).clamp(0.0, 1.0).min(((len - d) / RAMP).clamp(0.0, 1.0));
+    // Flat for the first half tile so the highway leaves its end tile at road level, in line.
+    let up = ((d - 0.5) / RAMP).clamp(0.0, 1.0).min(((len - 0.5 - d) / RAMP).clamp(0.0, 1.0));
     up * up * (3.0 - 2.0 * up) * HWY_Y
 }
 
@@ -679,10 +685,19 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                 }
                 let junction_here = s.junctions[idx((x, z))];
                 if junction_here == Junction::Roundabout && cell == Cell::Road {
-                    // A roundabout widens into a ring around a planted island.
-                    mb.disk(ctr, w + 0.1, 28, c);
+                    // A roundabout widens into a broad ring around a planted island, spilling
+                    // into the corners of the tiles around it.
+                    mb.disk(ctr, w + ROUNDABOUT_GROW, 40, c);
                 } else {
                     mb.disk(ctr, w, 16, c);
+                }
+                // An arm toward each highway that starts here, which may point diagonally.
+                for h in s.highways.iter().filter(|h| h.a == (x, z) || h.b == (x, z)) {
+                    let other = if h.a == (x, z) { h.b } else { h.a };
+                    let dir = (vec2(other.0 as f32, other.1 as f32) - vec2(x as f32, z as f32)).normalize();
+                    let end = vec3(ctr.x + dir.x * 0.5, ctr.y, ctr.z + dir.y * 0.5);
+                    let side = vec3(-dir.y, 0.0, dir.x) * w;
+                    mb.flat(&[ctr + side, end + side, end - side, ctr - side], c);
                 }
                 for d in &links {
                     let (dx, dz) = (d.0 as f32, d.1 as f32);
@@ -703,16 +718,20 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                         }
                     } else if junction == Junction::Roundabout {
                         // Dashed ring line, then the kerbed island with a small tree.
-                        for k in 0..12 {
-                            let a0 = k as f32 / 12.0 * std::f32::consts::TAU;
-                            let a1 = a0 + 0.26;
-                            let (r0, r1) = (0.305, 0.335);
+                        for k in 0..20 {
+                            let a0 = k as f32 / 20.0 * std::f32::consts::TAU;
+                            let a1 = a0 + 0.16;
+                            let (r0, r1) = (0.535, 0.56);
                             let pt = |a: f32, r: f32| vec3(ctr.x + a.cos() * r, my, ctr.z + a.sin() * r);
                             mb.flat(&[pt(a0, r0), pt(a1, r0), pt(a1, r1), pt(a0, r1)], MARKING);
                         }
-                        mb.disk(vec3(ctr.x, my + 0.002, ctr.z), 0.22, 24, MARKING);
-                        mb.disk(vec3(ctr.x, my + 0.004, ctr.z), 0.185, 24, GRASS);
-                        mb.cone(vec3(ctr.x, my, ctr.z), 0.1, 0.22, 0.06, 6, 0.0, LEAF_B);
+                        mb.disk(vec3(ctr.x, my + 0.002, ctr.z), 0.36, 32, MARKING);
+                        mb.disk(vec3(ctr.x, my + 0.004, ctr.z), 0.32, 32, GRASS);
+                        mb.cone(vec3(ctr.x, my, ctr.z), 0.14, 0.32, 0.08, 6, 0.0, LEAF_B);
+                        for k in 0..6 {
+                            let a = k as f32 / 6.0 * std::f32::consts::TAU + 0.3;
+                            mb.disk(vec3(ctr.x + a.cos() * 0.24, my + 0.006, ctr.z + a.sin() * 0.24), 0.035, 6, Color::new(0.95, 0.85, 0.4, 1.0));
+                        }
                     } else if junction == Junction::Light {
                         // Drawn every frame by draw_lights, because the colours change.
                     } else if links.len() == 2 && links[0].0 == -links[1].0 && links[0].1 == -links[1].1 && !on_water {
@@ -836,10 +855,12 @@ fn draw_highways(mb: &mut Mb, s: &Sim) {
         let len = (b - a).length();
         let dir = (b - a) / len;
         let side = vec2(-dir.y, dir.x);
-        let steps = (len * 4.0).ceil() as usize;
+        // The deck starts at the end tile's edge; the tile itself carries an ordinary road arm.
+        let (s0, s1) = (0.42, len - 0.42);
+        let steps = ((s1 - s0) * 4.0).ceil() as usize;
         for k in 0..steps {
-            let d0 = len * k as f32 / steps as f32;
-            let d1 = len * (k + 1) as f32 / steps as f32;
+            let d0 = s0 + (s1 - s0) * k as f32 / steps as f32;
+            let d1 = s0 + (s1 - s0) * (k + 1) as f32 / steps as f32;
             let (p0, p1) = (a + dir * d0, a + dir * d1);
             let (y0, y1) = (hwy_height(d0, len) + 0.02, hwy_height(d1, len) + 0.02);
             let q = |p: Vec2, y: f32, sd: f32| vec3(p.x + side.x * sd, y, p.y + side.y * sd);
@@ -850,22 +871,29 @@ fn draw_highways(mb: &mut Mb, s: &Sim) {
             }
             if y0 > 0.2 {
                 // Side barriers and an underside
+                let mid = vec3((p0.x + p1.x) / 2.0, y0, (p0.y + p1.y) / 2.0);
                 for sd in [0.36f32, -0.36] {
-                    mb.poly(&[q(p0, y0, sd), q(p1, y1, sd), q(p1, y1 + 0.08, sd), q(p0, y0 + 0.08, sd)], vec3((p0.x + p1.x) / 2.0, y0, (p0.y + p1.y) / 2.0), Color::new(0.93, 0.92, 0.89, 1.0));
-                    mb.poly(&[q(p0, y0 - 0.1, sd), q(p1, y1 - 0.1, sd), q(p1, y1, sd), q(p0, y0, sd)], vec3((p0.x + p1.x) / 2.0, y0, (p0.y + p1.y) / 2.0), Color::new(0.75, 0.74, 0.7, 1.0));
+                    // Thick concrete deck edge, then a barrier wall with a cap.
+                    mb.poly(&[q(p0, y0 - 0.2, sd), q(p1, y1 - 0.2, sd), q(p1, y1, sd), q(p0, y0, sd)], mid, Color::new(0.72, 0.71, 0.68, 1.0));
+                    mb.poly(&[q(p0, y0, sd), q(p1, y1, sd), q(p1, y1 + 0.13, sd), q(p0, y0 + 0.13, sd)], mid, Color::new(0.93, 0.92, 0.89, 1.0));
+                    let si = sd - sd.signum() * 0.05;
+                    mb.poly(&[q(p0, y0, si), q(p1, y1, si), q(p1, y1 + 0.13, si), q(p0, y0 + 0.13, si)], mid, Color::new(0.85, 0.84, 0.8, 1.0));
+                    mb.flat(&[q(p0, y0 + 0.13, sd), q(p1, y1 + 0.13, sd), q(p1, y1 + 0.13, si), q(p0, y0 + 0.13, si)], Color::new(0.97, 0.96, 0.93, 1.0));
                 }
             }
         }
         // Pillars
-        let mut d = RAMP + 0.4;
-        while d < len - RAMP {
+        let mut d = RAMP + 0.9;
+        while d < len - RAMP - 0.5 {
             let p = a + dir * d;
-            mb.boxx(vec3(p.x, HWY_Y / 2.0 - 0.15, p.y), vec3(0.14, HWY_Y + 0.3, 0.14), dir, Color::new(0.78, 0.77, 0.73, 1.0));
-            d += 1.6;
+            // Column with a crossbeam under the deck.
+            mb.boxx(vec3(p.x, (HWY_Y - 0.3) / 2.0, p.y), vec3(0.18, HWY_Y - 0.3, 0.18), dir, Color::new(0.8, 0.79, 0.75, 1.0));
+            mb.boxx(vec3(p.x, HWY_Y - 0.27, p.y), vec3(0.16, 0.12, 0.7), dir, Color::new(0.74, 0.73, 0.69, 1.0));
+            d += 1.4;
         }
         // Shadow
-        let o = vec2(0.3, -0.2);
-        let (sa, sb) = (a + dir * RAMP + o, b - dir * RAMP + o);
+        let o = vec2(0.45, -0.35) * HWY_Y;
+        let (sa, sb) = (a + dir * (RAMP + 0.5) + o, b - dir * (RAMP + 0.5) + o);
         mb.flat(&[vec3(sa.x + side.x * 0.36, 0.015, sa.y + side.y * 0.36), vec3(sb.x + side.x * 0.36, 0.015, sb.y + side.y * 0.36), vec3(sb.x - side.x * 0.36, 0.015, sb.y - side.y * 0.36), vec3(sa.x - side.x * 0.36, 0.015, sa.y - side.y * 0.36)], SHADOW);
     }
 }
@@ -1019,7 +1047,7 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
 fn draw_trees(mb: &mut Mb, s: &Sim) {
     for z in 0..H {
         for x in 0..W {
-            if s.terrain[idx((x, z))] != Terrain::Grass || s.cells[idx((x, z))] != Cell::Empty {
+            if s.terrain[idx((x, z))] != Terrain::Grass || s.cells[idx((x, z))] != Cell::Empty || s.near_roundabout((x, z)) {
                 continue;
             }
             let grove = noise(x as f32, z as f32, 5.0, 77);
@@ -1086,7 +1114,21 @@ fn draw_cars(mb: &mut Mb, s: &Sim, poses: &[Option<(Vec2, Vec2)>]) {
             continue;
         }
         let col = PALETTE[s.homes[i].color];
-        let (pos, dir) = poses.get(i).copied().flatten().unwrap_or_else(|| car_pose(c));
+        let (mut pos, mut dir) = poses.get(i).copied().flatten().unwrap_or_else(|| car_pose(c));
+        // Round a roundabout instead of driving over its island.
+        for q in [c.prev, c.cur] {
+            if s.cell(q) != Cell::Road || s.junctions[idx(q)] != Junction::Roundabout {
+                continue;
+            }
+            let v = pos - centre(q);
+            if v.length() < ROUNDABOUT_LANE {
+                let out = if v.length() > 1e-3 { v.normalize() } else { vec2(dir.y, -dir.x) };
+                pos = centre(q) + out * ROUNDABOUT_LANE;
+                // Drive anticlockwise on screen, which keeps the lane offset on the outside.
+                let tangent = vec2(out.y, -out.x);
+                dir = if tangent.dot(dir) >= 0.0 { tangent } else { tangent * 0.5 + dir * 0.5 }.normalize_or(dir);
+            }
+        }
         let normal = vec2(-dir.y, dir.x);
         let p = pos + normal * 0.15;
         let seg = (centre(c.cur) - centre(c.prev)).length();

@@ -412,10 +412,29 @@ impl Sim {
         in_bounds(p) && self.cells[idx(p)] == Cell::Road && self.link_count(p) >= 3
     }
 
+    /// Whether a tile is one of the eight around a roundabout, which its ring spills into.
+    pub fn near_roundabout(&self, p: Pos) -> bool {
+        (-1..=1).any(|dy| {
+            (-1..=1).any(|dx| {
+                let q = (p.0 + dx, p.1 + dy);
+                (dx, dy) != (0, 0) && in_bounds(q) && self.cells[idx(q)] == Cell::Road && self.junctions[idx(q)] == Junction::Roundabout
+            })
+        })
+    }
+
     /// Put a roundabout or traffic light on a road tile.
     pub fn place_junction(&mut self, p: Pos, kind: Junction) -> EditResult {
         if !in_bounds(p) || self.game_over || self.cells[idx(p)] != Cell::Road || kind == Junction::Plain {
             return EditResult::Blocked;
+        }
+        // A roundabout's ring needs the corners around it clear of buildings.
+        if kind == Junction::Roundabout {
+            let crowded = [(-1, -1), (1, -1), (-1, 1), (1, 1)].iter().any(|d| {
+                matches!(self.cell((p.0 + d.0, p.1 + d.1)), Cell::Home(_) | Cell::Dest(_) | Cell::Door(_) | Cell::Park(_))
+            });
+            if crowded {
+                return EditResult::Blocked;
+            }
         }
         if self.junctions[idx(p)] == kind {
             return EditResult::NoChange;
@@ -523,6 +542,9 @@ impl Sim {
                 }
                 let inside = x >= origin.0 && x < origin.0 + size.0 && y >= origin.1 && y < origin.1 + size.1;
                 let c = self.cells[idx(p)];
+                if (inside || doors.contains(&p)) && self.near_roundabout(p) {
+                    return false;
+                }
                 if inside || doors.contains(&p) {
                     if c != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass {
                         return false;
@@ -637,7 +659,7 @@ impl Sim {
                 if !(4..=12).contains(&dist) || !in_bounds(p) {
                     continue;
                 }
-                if self.cells[idx(p)] != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass {
+                if self.cells[idx(p)] != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass || self.near_roundabout(p) {
                     continue;
                 }
                 // Needs at least two open sides and no building directly next to it.
@@ -1354,6 +1376,21 @@ mod tests {
         s.dests[big].pins = 0;
         run(&mut s, 20.0);
         assert!(s.score >= 1, "score was {}", s.score);
+    }
+
+    #[test]
+    fn roundabouts_need_clear_corners_and_keep_them_clear() {
+        let mut s = Sim::empty(14);
+        for x in 4..=8 {
+            s.place_road((x, 6));
+        }
+        s.inventory.roundabouts = 2;
+        s.add_home((5, 5), 0);
+        assert_eq!(s.place_junction((6, 6), Junction::Roundabout), EditResult::Blocked);
+        assert_eq!(s.place_junction((8, 6), Junction::Roundabout), EditResult::Ok);
+        assert!(s.near_roundabout((9, 7)));
+        // Shops won't open in its corners either.
+        assert_eq!(s.add_dest((8, 7), 1), None);
     }
 
     #[test]

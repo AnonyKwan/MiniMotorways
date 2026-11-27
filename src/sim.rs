@@ -549,7 +549,9 @@ impl Sim {
                 let q = (p.0 + d.0, p.1 + d.1);
                 in_bounds(q)
                     && match self.cells[idx(q)] {
-                        Cell::Road | Cell::Door(_) => true,
+                        Cell::Road => true,
+                        // A shop driveway counts only for the tile straight in front of it.
+                        Cell::Door(_) => q == (p.0, p.1 - 1),
                         Cell::Home(h) => self.driveway(h) == p,
                         _ => false,
                     }
@@ -1081,6 +1083,9 @@ impl Sim {
             Cell::Home(id) => self.driveway(id) == other,
             // A car park only joins its own shop's car park and driveways.
             Cell::Park(id) => matches!(self.cells[idx(other)], Cell::Park(j) | Cell::Door(j) if j == id),
+            // A shop driveway joins its own car park, and the outside world only straight
+            // ahead: never from the side or behind, just like a house.
+            Cell::Door(id) => matches!(self.cells[idx(other)], Cell::Park(j) | Cell::Door(j) if j == id) || other == (h.0, h.1 + 1),
             _ => true,
         };
         ok(a, b) && ok(b, a)
@@ -1723,25 +1728,23 @@ mod tests {
         assert_eq!(s.cell((11, 7)), Cell::Park(big));
         // A teal home east of the big shop; its own shop lies west, reachable only by
         // driving in one driveway, across the car park and out the other.
-        s.add_home((16, 7), 0);
-        s.place_road((14, 7));
-        s.place_road((15, 7));
+        s.add_home((16, 9), 0);
+        for p in [(15, 9), (14, 9), (13, 9), (13, 8)] {
+            s.place_road(p);
+        }
         let target = s.add_dest((3, 9), 0).unwrap();
-        for x in 7..=9 {
-            s.place_road((x, 7));
-        }
-        for y in 8..=12 {
-            s.place_road((7, y));
-        }
-        for x in 4..=6 {
-            s.place_road((x, 12));
+        for p in [(10, 8), (10, 9), (9, 9), (8, 9), (7, 9), (7, 10), (7, 11), (7, 12), (6, 12), (5, 12), (4, 12)] {
+            s.place_road(p);
         }
         assert_eq!(s.cell((4, 11)), Cell::Door(target));
         // A road beside the car park doesn't connect into it except at a driveway.
         s.place_road((11, 8));
-        let path = s.find_path((16, 7), &|p| p == (4, 11)).expect("route through the car park");
+        let path = s.find_path((16, 9), &|p| p == (4, 11)).expect("route through the car park");
         assert!(path.contains(&(12, 7)) && path.contains(&(11, 7)), "{:?}", path);
         assert!(!path.contains(&(11, 8)));
+        // Roads that touch a driveway from the side don't count.
+        s.place_road((9, 7));
+        assert!(s.find_path((9, 7), &|p| p == (10, 7)).is_none());
         s.dests[target].pins = 2;
         s.dests[big].pins = 0;
         run(&mut s, 20.0);

@@ -617,7 +617,8 @@ fn connects(s: &Sim, from: Cell, from_pos: Pos, to: Pos) -> bool {
         Cell::Road => true,
         // Houses join the road only through their driveway.
         Cell::Home(h) => from == Cell::Road && s.driveway(h) == from_pos,
-        Cell::Door(_) => from == Cell::Road,
+        // Shop driveways join only the road straight in front of them.
+        Cell::Door(_) => from == Cell::Road && from_pos == (to.0, to.1 + 1),
         Cell::Dest(id) => matches!(from, Cell::Door(d) if d == id),
         Cell::Park(_) => false,
         Cell::Empty => false,
@@ -999,8 +1000,37 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     let (lx0, lx1) = (o.0 as f32 + 0.04, (o.0 + d.size.0) as f32 - 0.04);
     // The lot runs right up to the shop front, like a house's driveway.
     let shop_front = front - 0.22;
-    mb.rect_y(lx0, shop_front - 0.02, lx1, front + 0.92, y + 0.006, CURB);
-    mb.rect_y(lx0 + 0.06, shop_front, lx1 - 0.06, front + 0.86, y + 0.012, ASPHALT);
+    // The car park is closed in by a low hedge on its front and sides; only the driveways
+    // break through it, so it is clear where a road can join.
+    let lot_end = front + 0.74;
+    mb.rect_y(lx0, shop_front - 0.02, lx1, lot_end + 0.04, y + 0.006, CURB);
+    mb.rect_y(lx0 + 0.06, shop_front, lx1 - 0.06, lot_end, y + 0.012, ASPHALT);
+    let hedge = Color::new(0.30, 0.55, 0.33, 1.0);
+    let (hy, hh) = (y + 0.0, 0.1);
+    for (a, b) in [(lx0 - 0.02, lx0 + 0.08), (lx1 - 0.08, lx1 + 0.02)] {
+        mb.abox(vec3(a, hy, front - 0.1), vec3(b, hy + hh, front + 0.96), hedge);
+    }
+    let mut x = lx0 - 0.02;
+    let mut gaps: Vec<f32> = d.doors.iter().map(|p| p.0 as f32 + 0.5).collect();
+    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    for g in gaps.iter().chain(std::iter::once(&f32::MAX)) {
+        let end = (g - 0.4).min(lx1 + 0.02);
+        if end > x {
+            mb.abox(vec3(x, hy, front + 0.82), vec3(end, hy + hh, front + 0.96), hedge);
+        }
+        x = g + 0.4;
+    }
+    // Driveways: road-width asphalt with kerbs from the car park to the tile edge, where the
+    // road in front joins, and a painted arrow pointing in.
+    let (cw, aw) = (0.38, 0.31);
+    for door in &d.doors {
+        let dx = door.0 as f32 + 0.5;
+        mb.rect_y(dx - cw, lot_end - 0.04, dx + cw, front + 1.0, y + 0.007, CURB);
+        mb.rect_y(dx - aw, lot_end - 0.02, dx + aw, front + 1.0, y + 0.013, ASPHALT);
+        let tip = vec3(dx, y + 0.018, front + 0.58);
+        mb.flat(&[tip, vec3(dx + 0.12, y + 0.018, front + 0.74), vec3(dx - 0.12, y + 0.018, front + 0.74)], MARKING);
+        mb.rect_y(dx - 0.035, front + 0.72, dx + 0.035, front + 0.9, y + 0.018, MARKING);
+    }
     for k in 0..d.size.0 {
         let tx = (o.0 + k) as f32;
         if d.doors.iter().any(|p| p.0 == o.0 + k) {

@@ -624,10 +624,14 @@ fn connects(s: &Sim, from: Cell, from_pos: Pos, to: Pos) -> bool {
 /// Height of the road surface on a tile: on top of hills, at ground level elsewhere.
 fn road_h(s: &Sim, p: Pos) -> f32 {
     match terrain_at(s, p.0, p.1) {
-        Some(Terrain::Hill) => HILL_Y,
+        // Roads through hills run in a tunnel at ground level, hidden under the hill.
+        Some(Terrain::Water) => BRIDGE_Y,
         _ => GROUND_Y,
     }
 }
+
+/// Bridge decks stand clear of the water; the road ramps up to them on the bank tile.
+const BRIDGE_Y: f32 = 0.24;
 
 const HWY_Y: f32 = 0.7;
 const RAMP: f32 = 0.9;
@@ -648,19 +652,28 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                 }
                 let hy = road_h(s, (x, z));
                 let on_water = terrain_at(s, x, z) == Some(Terrain::Water);
-                let ctr = vec3(x as f32 + 0.5, y + hy + if on_water { 0.06 } else { 0.0 }, z as f32 + 0.5);
+                let ctr = vec3(x as f32 + 0.5, y + hy, z as f32 + 0.5);
                 let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, cell, (x, z), (x + d.0, z + d.1))).collect();
                 if layer == 0 && on_water {
                     // Bridge deck, pillar and railings
-                    mb.boxx(vec3(ctr.x, 0.0, ctr.z), vec3(0.86, 0.1, 0.86), vec2(1.0, 0.0), Color::new(0.85, 0.84, 0.8, 1.0));
-                    mb.boxx(vec3(ctr.x, WATER_Y / 2.0, ctr.z), vec3(0.16, -WATER_Y, 0.16), vec2(1.0, 0.0), Color::new(0.7, 0.69, 0.66, 1.0));
+                    let deck_c = Color::new(0.86, 0.85, 0.81, 1.0);
+                    let top = BRIDGE_Y;
+                    // Shadow on the water, deck slab, and a pair of piers.
+                    mb.rect_y(ctr.x - 0.35, ctr.z - 0.3, ctr.x + 0.55, ctr.z + 0.5, WATER_Y + 0.003, alpha(SHADOW, 0.22));
+                    mb.boxx(vec3(ctr.x, top - 0.07, ctr.z), vec3(0.9, 0.14, 0.9), vec2(1.0, 0.0), deck_c);
+                    let along_x = links.iter().any(|d| d.1 == 0);
+                    for off in [-0.22f32, 0.22] {
+                        let (px, pz) = if along_x { (ctr.x, ctr.z + off) } else { (ctr.x + off, ctr.z) };
+                        let h = top - 0.14 - WATER_Y;
+                        mb.boxx(vec3(px, WATER_Y + h / 2.0, pz), vec3(0.14, h, 0.14), vec2(1.0, 0.0), Color::new(0.7, 0.69, 0.66, 1.0));
+                    }
                     for d in DIRS {
                         if links.contains(&d) {
                             continue;
                         }
                         let (dx, dz) = (d.0 as f32, d.1 as f32);
-                        let rc = vec3(ctr.x + dx * 0.4, 0.12, ctr.z + dz * 0.4);
-                        let size = if d.0 == 0 { vec3(0.86, 0.1, 0.05) } else { vec3(0.05, 0.1, 0.86) };
+                        let rc = vec3(ctr.x + dx * 0.42, BRIDGE_Y + 0.07, ctr.z + dz * 0.42);
+                        let size = if d.0 == 0 { vec3(0.9, 0.14, 0.06) } else { vec3(0.06, 0.14, 0.9) };
                         mb.boxx(rc, size, vec2(1.0, 0.0), Color::new(0.93, 0.92, 0.88, 1.0));
                     }
                 }
@@ -674,7 +687,8 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                 for d in &links {
                     let (dx, dz) = (d.0 as f32, d.1 as f32);
                     let nh = road_h(s, (x + d.0, z + d.1));
-                    let edge_y = y + (hy + nh) * 0.5 + if on_water { 0.06 } else { 0.0 };
+                    // Bridges keep their deck height right to the bank; the ramp is on the land tile.
+                    let edge_y = y + if hy == BRIDGE_Y || nh == BRIDGE_Y { hy.max(nh) } else { (hy + nh) * 0.5 };
                     let end = vec3(ctr.x + dx * 0.5, edge_y, ctr.z + dz * 0.5);
                     let side = vec3(-dz, 0.0, dx) * w;
                     mb.flat(&[ctr + side, end + side, end - side, ctr - side], c);
@@ -762,6 +776,54 @@ fn draw_lights(mb: &mut Mb, s: &Sim) {
             }
             mb.disk(pole + vec3(0.0, 0.46, 0.0), 0.09, 12, Color::new(0.22, 0.22, 0.25, 1.0));
             mb.disk(pole + vec3(0.0, 0.47, 0.0), 0.055, 12, if green_x { on } else { off });
+        }
+    }
+}
+
+/// Tunnels: a stone portal where a road enters a hill, and a faint trace over the hilltop
+/// so the player can see (and erase) the route.
+fn draw_tunnels(mb: &mut Mb, s: &Sim) {
+    let hill = |x: i32, z: i32| terrain_at(s, x, z) == Some(Terrain::Hill);
+    for z in 0..H {
+        for x in 0..W {
+            if !hill(x, z) || s.cells[idx((x, z))] != Cell::Road {
+                continue;
+            }
+            let c = vec2(x as f32 + 0.5, z as f32 + 0.5);
+            let links: Vec<(i32, i32)> = DIRS.iter().copied().filter(|d| connects(s, Cell::Road, (x, z), (x + d.0, z + d.1))).collect();
+            mb.disk(vec3(c.x, HILL_Y + 0.004, c.y), 0.12, 10, alpha(SHADOW, 0.16));
+            for d in &links {
+                let dir = vec2(d.0 as f32, d.1 as f32);
+                let side = vec2(-dir.y, dir.x) * 0.12;
+                let (a, b) = (c, c + dir * 0.5);
+                let q = |p: Vec2| vec3(p.x, HILL_Y + 0.004, p.y);
+                mb.flat(&[q(a + side), q(b + side), q(b - side), q(a - side)], alpha(SHADOW, 0.16));
+                if hill(x + d.0, z + d.1) {
+                    continue;
+                }
+                // Portal on the cliff face: stone frame and a dark arched mouth.
+                let n = vec3(dir.x, 0.0, dir.y);
+                let t = vec3(-dir.y, 0.0, dir.x);
+                let face = vec3(c.x, 0.0, c.y) + n * 0.5;
+                let stone = Color::new(0.74, 0.72, 0.68, 1.0);
+                let arch = |w: f32, h: f32, off: f32| -> Vec<Vec3> {
+                    let mut pts = vec![face + n * off - t * w, face + n * off + t * w];
+                    for k in 0..=8 {
+                        let ang = k as f32 / 8.0 * std::f32::consts::PI;
+                        pts.push(face + n * off + t * (w * ang.cos()) + Vec3::Y * (h + w * 0.8 * ang.sin()));
+                    }
+                    pts
+                };
+                mb.poly_n(&arch(0.42, 0.2, 0.012), n, stone);
+                mb.poly_n(&arch(0.3, 0.14, 0.02), n, Color::new(0.16, 0.16, 0.19, 1.0));
+                // Seen from above: a stone lintel along the hilltop edge and shade over the
+                // road just outside, so the entrance reads clearly at any angle.
+                mb.boxx(face - n * 0.06 + Vec3::Y * (HILL_Y + 0.04), vec3(0.9, 0.08, 0.12), vec2(-dir.y, dir.x), stone);
+                let (p0, p1) = (vec2(face.x, face.z), vec2(face.x, face.z) + dir * 0.28);
+                let q = |p: Vec2| vec3(p.x, 0.02, p.y);
+                let w = side * 2.6;
+                mb.flat(&[q(p0 + w), q(p1 + w), q(p1 - w), q(p0 - w)], alpha(SHADOW, 0.35));
+            }
         }
     }
 }
@@ -1027,7 +1089,7 @@ fn draw_cars(mb: &mut Mb, s: &Sim, poses: &[Option<(Vec2, Vec2)>]) {
         let ground = if seg > 1.5 {
             hwy_height(seg * c.progress, seg) + 0.03
         } else {
-            let hp = |q: Pos| road_h(s, q) + if terrain_at(s, q.0, q.1) == Some(Terrain::Water) { 0.06 } else { 0.0 };
+            let hp = |q: Pos| road_h(s, q);
             hp(c.prev) + (hp(c.cur) - hp(c.prev)) * c.progress
         };
         let base = vec3(p.x, ground, p.y);
@@ -1109,6 +1171,7 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight, cache: &mut WorldCache, ca
         draw_terrain(&mut mb, s);
         draw_roads(&mut mb, s);
         draw_highways(&mut mb, s);
+        draw_tunnels(&mut mb, s);
         for d in s.dests.iter().filter(|d| settled(s, d.born)) {
             draw_shop(&mut mb, d, PALETTE[d.color], 0.0);
         }
@@ -1135,7 +1198,7 @@ pub fn draw_world(s: &Sim, time: f32, hl: &Highlight, cache: &mut WorldCache, ca
     }
     draw_cars(&mut mb, s, car_poses);
     if let Some(t) = hl.tile {
-        let y = road_h(s, t) + 0.03;
+        let y = if terrain_at(s, t.0, t.1) == Some(Terrain::Hill) { HILL_Y } else { road_h(s, t) } + 0.03;
         mb.rect_y(t.0 as f32 + 0.04, t.1 as f32 + 0.04, t.0 as f32 + 0.96, t.1 as f32 + 0.96, y, hl.tint);
         if let Some((from, ok)) = hl.highway_from {
             let a = vec2(from.0 as f32 + 0.5, from.1 as f32 + 0.5);

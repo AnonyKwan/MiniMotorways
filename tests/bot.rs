@@ -84,7 +84,7 @@ fn plan_shop(s: &Sim, d: usize) -> Option<Vec<Pos>> {
         _ => None,
     };
     for door in &s.dests[d].doors {
-        let q = (door.0, door.1 + 1);
+        let q = s.dests[d].entry(*door);
         if in_bounds(q) {
             if let Some(c) = buildable(q) {
                 cost[idx(q)] = c;
@@ -205,7 +205,7 @@ fn play(map: MapKind, seed: u64, weeks: u32) -> (u32, u32, bool) {
         let stuck: Vec<(usize, Pos, i32, f32)> = last.iter().enumerate().filter(|(_, l)| s.time - l.2 > 15.0).map(|(i, l)| (i, l.0, s.link_count(l.0) as i32, s.time - l.2)).collect();
         eprintln!("   stuck >15s: {:?}", stuck);
         eprintln!("   cars {:?}, moving {}, pins {} assigned {}", st, waiting, d.pins, d.assigned);
-        eprintln!("   served {} plan {:?} bridge {} tunnel {} door {:?} front cell {:?} terrain {:?}", shop_served(&s, f), plan_shop(&s, f).map(|p| p.len()), s.inventory.bridge_tiles, s.inventory.tunnel_tiles, d.doors, s.cell((d.doors[0].0, d.doors[0].1 + 1)), s.terrain[idx((d.doors[0].0, d.doors[0].1 + 1))]);
+        eprintln!("   served {} plan {:?} bridge {} tunnel {} door {:?} front cell {:?} terrain {:?}", shop_served(&s, f), plan_shop(&s, f).map(|p| p.len()), s.inventory.bridge_tiles, s.inventory.tunnel_tiles, d.doors, s.cell(d.entry(d.doors[0])), s.terrain[idx(d.entry(d.doors[0]))]);
         eprintln!("   failed shop colour {} big {}: {} homes ({} unconnected) for {} shops, roads left {}, total shops {}",
             d.color, d.big(), homes, unconnected, shops, s.roads_left, s.dests.len());
     }

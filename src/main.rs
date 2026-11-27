@@ -446,9 +446,9 @@ impl Game {
             hi = hi.max(p + 1.0);
         }
         for d in &s.dests {
-            let p = vec2(d.origin.0 as f32, d.origin.1 as f32);
-            lo = lo.min(p);
-            hi = hi.max(p + vec2(d.size.0 as f32, d.size.1 as f32 + 1.0));
+            let (a, b) = d.bounds();
+            lo = lo.min(vec2(a.0 as f32, a.1 as f32));
+            hi = hi.max(vec2(b.0 as f32 + 1.0, b.1 as f32 + 1.0));
         }
         if lo.x > hi.x {
             return;
@@ -768,10 +768,12 @@ async fn main() {
         }
         // Test builds: F6 drops a big shop near the first one, to check how it looks.
         if option_env!("LL_SEED").is_some() && is_key_pressed(KeyCode::F6) && !g.sim.dests.is_empty() {
-            let o = g.sim.dests[0].origin;
-            'find: for r in 4..12 {
-                for (dx, dy) in [(r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, r)] {
-                    if g.sim.add_big_dest((o.0 + dx, o.1 + dy), 1).is_some() {
+            // Each press drops another big shop, turning a quarter each time.
+            let o = g.sim.dests[0].anchor;
+            let facing = g.sim.dests.len() % 4;
+            'find: for r in 4..14 {
+                for (dx, dy) in [(r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, r), (r, -r), (-r, -r)] {
+                    if g.sim.add_dest_facing((o.0 + dx, o.1 + dy), facing, 1, true).is_some() {
                         break 'find;
                     }
                 }
@@ -1100,18 +1102,25 @@ fn end_stroke(g: &mut Game) {
     }
     // A road that ends against a shop's side or back looks joined but isn't: say so.
     let inside = |q: (i32, i32)| q.0 >= 0 && q.1 >= 0 && q.0 < W && q.1 < H;
-    let touches_shop_wrongly = g.stroke.iter().filter(|(_, built)| *built).any(|&(p, _)| {
-        // A tile right in front of a driveway is fine, whatever else it touches.
-        if matches!(g.sim.cell((p.0, p.1 - 1)), Cell::Door(_)) {
-            return false;
+    // Shops the stroke runs against (building or car park) without ever reaching a driveway.
+    let mut against = Vec::new();
+    let mut joined = Vec::new();
+    for &(p, built) in &g.stroke {
+        if !built {
+            continue;
         }
-        little_lanes::map::DIRS.iter().any(|d| {
+        for d in little_lanes::map::DIRS {
             let q = (p.0 + d.0, p.1 + d.1);
-            inside(q) && matches!(g.sim.cell(q), Cell::Dest(_) | Cell::Park(_) | Cell::Door(_))
-        })
-    });
+            match g.sim.cell(q) {
+                Cell::Dest(i) | Cell::Park(i) if inside(q) => against.push(i),
+                Cell::Door(i) => joined.push(i),
+                _ => {}
+            }
+        }
+    }
+    let touches_shop_wrongly = against.iter().any(|i| !joined.contains(i));
     if touches_shop_wrongly {
-        toast(g, "Shops only connect at their driveway, the arrow in front");
+        toast(g, "Shops only connect at their driveway: join it from the front or the side");
     }
     g.undo.push(std::mem::take(&mut g.stroke));
     if g.undo.len() > UNDO_DEPTH {

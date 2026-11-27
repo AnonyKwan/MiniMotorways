@@ -208,11 +208,14 @@ pub struct Mb {
     idx: Vec<u16>,
     /// When set, finished meshes are kept here instead of drawn (for the static-world cache).
     keep: Option<Vec<Mesh>>,
+    /// When set, points and normals are turned from a local frame into the world:
+    /// (local pivot, world pivot, world direction of local +x, world direction of local +z).
+    xf: Option<(Vec2, Vec2, Vec2, Vec2)>,
 }
 
 impl Mb {
     pub fn new() -> Self {
-        Mb { verts: Vec::with_capacity(9000), idx: Vec::with_capacity(4400), keep: None }
+        Mb { verts: Vec::with_capacity(9000), idx: Vec::with_capacity(4400), keep: None, xf: None }
     }
 
     pub fn flush(&mut self) {
@@ -237,11 +240,22 @@ impl Mb {
         if self.idx.len() + (pts.len() - 2) * 3 > 4300 || self.verts.len() + pts.len() > 9000 {
             self.flush();
         }
+        let (n, turn) = match self.xf {
+            Some((lp, wp, a, f)) => (
+                vec3(a.x * n.x + f.x * n.z, n.y, a.y * n.x + f.y * n.z),
+                Some(move |p: Vec3| {
+                    let (dx, dz) = (p.x - lp.x, p.z - lp.y);
+                    vec3(wp.x + a.x * dx + f.x * dz, p.y, wp.y + a.y * dx + f.y * dz)
+                }),
+            ),
+            None => (n, None),
+        };
         let col = shade(c, n);
         let cc: [u8; 4] = col.into();
         let base = self.verts.len() as u16;
         for p in pts {
-            self.verts.push(Vertex { position: *p, uv: Vec2::ZERO, color: cc, normal: Vec4::ZERO });
+            let position = turn.map_or(*p, |t| t(*p));
+            self.verts.push(Vertex { position, uv: Vec2::ZERO, color: cc, normal: Vec4::ZERO });
         }
         for k in 1..pts.len() as u16 - 1 {
             self.idx.extend_from_slice(&[base, base + k, base + k + 1]);
@@ -617,10 +631,10 @@ fn connects(s: &Sim, from: Cell, from_pos: Pos, to: Pos) -> bool {
         Cell::Road => true,
         // Houses join the road only through their driveway.
         Cell::Home(h) => from == Cell::Road && s.driveway(h) == from_pos,
-        // Shop driveways join only the road straight in front of them.
-        Cell::Door(_) => from == Cell::Road && from_pos == (to.0, to.1 + 1),
-        Cell::Dest(id) => matches!(from, Cell::Door(d) if d == id),
-        Cell::Park(_) => false,
+        // Shop driveways join roads on their front or sides, and their own car park behind.
+        Cell::Door(_) => from == Cell::Road,
+        Cell::Park(id) => matches!(from, Cell::Door(d) if d == id),
+        Cell::Dest(_) => false,
         Cell::Empty => false,
     }
 }
@@ -716,10 +730,7 @@ fn draw_roads(mb: &mut Mb, s: &Sim) {
                     let my = ctr.y + 0.004;
                     let junction = s.junctions[idx((x, z))];
                     if let Cell::Door(_) = cell {
-                        for i in 0..3 {
-                            let lx = ctr.x - 0.2 + i as f32 * 0.2;
-                            mb.rect_y(lx - 0.015, ctr.z - 0.05, lx + 0.015, ctr.z + 0.25, my, MARKING);
-                        }
+                        // The shop draws its own arrow on the driveway.
                     } else if junction == Junction::Roundabout {
                         // Dashed ring line, then the kerbed island with a small tree.
                         for k in 0..20 {
@@ -986,18 +997,33 @@ fn draw_home(mb: &mut Mb, p: Pos, facing: usize, col: Color, lift: f32) {
 /// A shop: flat roof with rooftop units and a sign, striped awning over the front,
 /// and an entrance facing each of its fixed driveways.
 fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
-    let o = d.origin;
-    let (x0, z0) = (o.0 as f32 + 0.1, o.1 as f32 + 0.08);
-    let (x1, z1) = (o.0 as f32 + d.size.0 as f32 - 0.1, o.1 as f32 + d.size.1 as f32 - 0.22);
+    if lift == 0.0 {
+        let (o, sz) = (d.origin, d.size);
+        shadow_rect(mb, o.0 as f32 + 0.1, o.1 as f32 + 0.1, (o.0 + sz.0) as f32 - 0.1, (o.1 + sz.1) as f32 - 0.1, 1.0);
+    }
+    // Drawn as if facing down (+z) with the building at local rows 0-1, the car park at row 2
+    // and driveways at row 3, then turned to the way the shop really faces.
+    let f = DIRS[d.facing];
+    let (fx, fz) = (vec2(f.1 as f32, -f.0 as f32), vec2(f.0 as f32, f.1 as f32));
+    let lp = vec2(0.5, 2.5);
+    let wp = vec2(d.anchor.0 as f32 + 0.5, d.anchor.1 as f32 + 0.5);
+    mb.xf = Some((lp, wp, fx, fz));
+    draw_shop_local(mb, d, col, lift);
+    mb.xf = None;
+}
+
+fn draw_shop_local(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
+    let o = (0, 0);
+    let w = d.width();
+    let door_us: Vec<i32> = d.doors.iter().map(|p| (0..w).find(|&u| d.tile(u, 1) == *p).unwrap_or(0)).collect();
+    let (x0, z0) = (0.1, 0.08);
+    let (x1, z1) = (w as f32 - 0.1, 2.0 - 0.22);
     let y = lift;
     let h = 0.72;
-    if lift == 0.0 {
-        shadow_rect(mb, x0, z0, x1, z1, h + 0.3);
-    }
     let grey = Color::new(0.82, 0.83, 0.85, 1.0);
     // Car park across the shop's front row: kerb, asphalt, and painted bays between driveways.
-    let front = (o.1 + d.size.1) as f32;
-    let (lx0, lx1) = (o.0 as f32 + 0.04, (o.0 + d.size.0) as f32 - 0.04);
+    let front = 2.0;
+    let (lx0, lx1) = (o.0 as f32 + 0.04, (o.0 + w) as f32 - 0.04);
     // The lot runs right up to the shop front, like a house's driveway.
     let shop_front = front - 0.22;
     // The car park is closed in by a low hedge on its front and sides; only the driveways
@@ -1011,7 +1037,7 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
         mb.abox(vec3(a, hy, front - 0.1), vec3(b, hy + hh, front + 0.96), hedge);
     }
     let mut x = lx0 - 0.02;
-    let mut gaps: Vec<f32> = d.doors.iter().map(|p| p.0 as f32 + 0.5).collect();
+    let mut gaps: Vec<f32> = door_us.iter().map(|u| *u as f32 + 0.5).collect();
     gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
     for g in gaps.iter().chain(std::iter::once(&f32::MAX)) {
         let end = (g - 0.4).min(lx1 + 0.02);
@@ -1023,17 +1049,17 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     // Driveways: road-width asphalt with kerbs from the car park to the tile edge, where the
     // road in front joins, and a painted arrow pointing in.
     let (cw, aw) = (0.38, 0.31);
-    for door in &d.doors {
-        let dx = door.0 as f32 + 0.5;
+    for u in &door_us {
+        let dx = *u as f32 + 0.5;
         mb.rect_y(dx - cw, lot_end - 0.04, dx + cw, front + 1.0, y + 0.007, CURB);
         mb.rect_y(dx - aw, lot_end - 0.02, dx + aw, front + 1.0, y + 0.013, ASPHALT);
         let tip = vec3(dx, y + 0.018, front + 0.58);
         mb.flat(&[tip, vec3(dx + 0.12, y + 0.018, front + 0.74), vec3(dx - 0.12, y + 0.018, front + 0.74)], MARKING);
         mb.rect_y(dx - 0.035, front + 0.72, dx + 0.035, front + 0.9, y + 0.018, MARKING);
     }
-    for k in 0..d.size.0 {
+    for k in 0..w {
         let tx = (o.0 + k) as f32;
-        if d.doors.iter().any(|p| p.0 == o.0 + k) {
+        if door_us.contains(&k) {
             continue;
         }
         // Three bays per car-park tile, nose-in toward the shop.
@@ -1043,7 +1069,7 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
         }
         // A couple of parked cars in the shop's colour, varied per tile.
         for b in 0..3 {
-            if hash(o.0 + k, o.1 + b, 91) < 0.45 {
+            if hash(d.anchor.0 + k, d.anchor.1 + b, 91) < 0.45 {
                 let cx = tx + 0.22 + b as f32 * 0.28;
                 let base = vec3(cx, y + 0.012, front + 0.23);
                 mb.boxx(base + Vec3::Y * 0.07, vec3(0.17, 0.1, 0.3), vec2(0.0, 1.0), lighter(col, 0.15));
@@ -1052,14 +1078,14 @@ fn draw_shop(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
         }
     }
     // A big shop is two small shops side by side, one per driveway, sharing a car park.
-    for door in &d.doors {
+    for u in &door_us {
         let (ux0, ux1) = if d.big() {
-            let left = (door.0 - 1) as f32;
+            let left = (u - 1) as f32;
             (left + 0.1, left + 2.9)
         } else {
             (x0, x1)
         };
-        draw_shop_unit(mb, ux0, ux1, z0, z1, y, h, door.0 as f32 + 0.5, col, grey);
+        draw_shop_unit(mb, ux0, ux1, z0, z1, y, h, *u as f32 + 0.5, col, grey);
     }
 }
 
@@ -1342,8 +1368,9 @@ fn draw_ghost(mb: &mut Mb, s: &Sim, t: Pos, ghost: Ghost, ok: bool) {
     if let Cell::Dest(d) | Cell::Door(d) | Cell::Park(d) = s.cell(t) {
         if ghost != Ghost::Erase && !ok {
             let d = &s.dests[d];
-            let (x0, z0) = (d.origin.0 as f32, d.origin.1 as f32);
-            let (x1, z1) = (x0 + d.size.0 as f32, z0 + d.size.1 as f32 + 1.0);
+            let (lo, hi) = d.bounds();
+            let (x0, z0) = (lo.0 as f32, lo.1 as f32);
+            let (x1, z1) = (hi.0 as f32 + 1.0, hi.1 as f32 + 1.0);
             let y = if matches!(s.cell(t), Cell::Dest(_)) { 1.15 } else { 0.06 };
             let red = Color::new(0.92, 0.27, 0.24, 0.95);
             mb.rect_y(x0, z0, x1, z1, y, alpha(WARN, 0.22));

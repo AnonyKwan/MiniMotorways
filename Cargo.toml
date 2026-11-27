@@ -1,0 +1,22 @@
+[package]
+name = "little-lanes"
+version = "0.1.0"
+edition = "2021"
+description = "A minimalist road-drawing traffic puzzle for the browser"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "little-lanes"
+path = "src/main.rs"
+
+[dependencies]
+macroquad = { version = "0.4", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

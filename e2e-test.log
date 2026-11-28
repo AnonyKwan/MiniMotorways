@@ -1,24 +1,88 @@
-commit: 7b445999018c02b28f18ee80807f759434d39d92  ref: polish  run: 46120198741
+commit: 5b8e5e4a4367fb9b1a4bbde48221010f9a2df1f8  ref: polish  run: 46120342793
 -----
-[WebServer] 127.0.0.1 - - [28/Nov/2026 07:14:54] "GET /index.html HTTP/1.1" 200 -
-SyntaxError: /home/runner/work/LittleLanes/LittleLanes/e2e/game.spec.mjs: Unexpected token, expected "," (138:39)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /index.html HTTP/1.1" 200 -
 
-[0m [90m 136 |[39m })[33m;[39m
- [90m 137 |[39m
-[31m[1m>[22m[39m[90m 138 |[39m test([32m'pick Expert mode, or start today'[39ms map[32m', async ({ page }) => {[39m
- [90m     |[39m                                        [31m[1m^[22m[39m
- [90m 139 |[39m   [36mconst[39m errors [33m=[39m watchErrors(page)[33m;[39m
- [90m 140 |[39m   [36mawait[39m page[33m.[39mgoto([32m'/index.html'[39m)[33m;[39m
- [90m 141 |[39m   [36mawait[39m page[33m.[39mlocator([32m'#mode-select button[data-mode="1"]'[39m)[33m.[39mclick()[33m;[39m[0m
+Running 8 tests using 1 worker
 
-   at game.spec.mjs:138
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:28] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  1 game.spec.mjs:13:1 › the map list shows five open maps and the rest locked (327ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  2 game.spec.mjs:25:1 › unlocking every map opens them all (152ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /index.html?city=beijing&seed=4 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:29] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  3 game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road (918ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /index.html?city=london&seed=2 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  4 game.spec.mjs:91:1 › the weekly upgrade card appears and can be picked (436ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  5 game.spec.mjs:104:1 › an unattended town ends in the game over screen (420ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /index.html?theme=light HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:30] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  6 game.spec.mjs:114:1 › light and dark themes both work (200ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /index.html?city=losangeles&seed=3 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  7 game.spec.mjs:122:1 › it fits a phone screen and takes touch (617ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 07:16:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  8 game.spec.mjs:138:1 › pick Expert mode, or start today's map (400ms)
 
-  136 | });
-  137 |
-> 138 | test('pick Expert mode, or start today's map', async ({ page }) => {
-      |                                       ^
-  139 |   const errors = watchErrors(page);
-  140 |   await page.goto('/index.html');
-  141 |   await page.locator('#mode-select button[data-mode="1"]').click();
-Error: No tests found
-
+  8 passed (4.2s)

@@ -1945,6 +1945,39 @@ mod tests {
     }
 
     #[test]
+    fn cars_wait_at_the_entrance_when_every_bay_is_taken() {
+        let mut s = connected_setup();
+        // Every bay is held by someone else: the car waits at the entrance without a bay.
+        for b in s.dests[0].bays.iter_mut() {
+            *b = Some(99);
+        }
+        s.dests[0].pins = 1;
+        run(&mut s, 8.0);
+        assert_eq!(s.cars[0].state, CarState::Unloading(0));
+        assert!(s.cars[0].park.is_none());
+        assert_eq!(s.score, 0);
+        // A bay frees up: in it goes, and the trip counts.
+        s.dests[0].bays[2] = None;
+        run(&mut s, 3.0);
+        assert!(s.score >= 1, "score was {}", s.score);
+    }
+
+    #[test]
+    fn a_big_shop_works_from_its_far_entrance() {
+        let mut s = Sim::empty(8);
+        let d = s.add_big_dest((10, 5), 0).unwrap();
+        // Joined only at the right-hand entrance, from its open side.
+        s.add_home((20, 7), 0);
+        for x in 17..=19 {
+            s.place_road((x, 7));
+        }
+        assert_eq!(s.link_count((17, 7)), 2);
+        s.dests[d].pins = 2;
+        run(&mut s, 14.0);
+        assert!(s.score >= 2, "score was {}", s.score);
+    }
+
+    #[test]
     fn shops_can_face_any_way() {
         for facing in 0..4 {
             let mut s = Sim::empty(8);

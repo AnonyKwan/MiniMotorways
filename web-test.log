@@ -1,130 +1,130 @@
-commit: 5b8e5e4a4367fb9b1a4bbde48221010f9a2df1f8  ref: polish  run: 46120342793
+commit: 6488de8eb848ebf75ae45237347614921c7e2387  ref: polish  run: 46120485231
 -----
 TAP version 13
 # Subtest: catalog lists the 27 maps and the hidden one
 ok 1 - catalog lists the 27 maps and the hidden one
   ---
-  duration_ms: 84.699691
+  duration_ms: 47.804695
   type: 'test'
   ...
 # Subtest: a new game starts empty and clean
 ok 2 - a new game starts empty and clean
   ---
-  duration_ms: 2.883331
+  duration_ms: 5.169
   type: 'test'
   ...
 # Subtest: same seed gives the same game, different seed a different one
 ok 3 - same seed gives the same game, different seed a different one
   ---
-  duration_ms: 17.946243
+  duration_ms: 32.994576
   type: 'test'
   ...
 # Subtest: drawing a road spends concrete and erasing gives it back
 ok 4 - drawing a road spends concrete and erasing gives it back
   ---
-  duration_ms: 13.861806
+  duration_ms: 25.467113
   type: 'test'
   ...
 # Subtest: bad requests come back as codes, not crashes
 ok 5 - bad requests come back as codes, not crashes
   ---
-  duration_ms: 4.827795
+  duration_ms: 7.424237
   type: 'test'
   ...
 # Subtest: every map plays for two minutes of game time without trapping
 ok 6 - every map plays for two minutes of game time without trapping
   ---
-  duration_ms: 36.480695
+  duration_ms: 40.85128
   type: 'test'
   ...
 # Subtest: the first weekly offer opens after 140 seconds and can be taken
 ok 7 - the first weekly offer opens after 140 seconds and can be taken
   ---
-  duration_ms: 3.626973
+  duration_ms: 4.899631
   type: 'test'
   ...
 # Subtest: five maps are open from the start
 ok 8 - five maps are open from the start
   ---
-  duration_ms: 0.639375
+  duration_ms: 1.122469
   type: 'test'
   ...
 # Subtest: the unlock chain follows the design
 ok 9 - the unlock chain follows the design
   ---
-  duration_ms: 0.244129
+  duration_ms: 0.323848
   type: 'test'
   ...
 # Subtest: unlock all opens everything
 ok 10 - unlock all opens everything
   ---
-  duration_ms: 0.072499
+  duration_ms: 0.13314
   type: 'test'
   ...
 # Subtest: lock text names the requirement
 ok 11 - lock text names the requirement
   ---
-  duration_ms: 0.154323
+  duration_ms: 0.263736
   type: 'test'
   ...
 # Subtest: dragging across cells moves one step at a time and ends on target
 ok 12 - dragging across cells moves one step at a time and ends on target
   ---
-  duration_ms: 0.547636
+  duration_ms: 0.872699
   type: 'test'
   ...
 # Subtest: error codes have friendly text
 ok 13 - error codes have friendly text
   ---
-  duration_ms: 0.130617
+  duration_ms: 0.171693
   type: 'test'
   ...
 # Subtest: clock and pack text
 ok 14 - clock and pack text
   ---
-  duration_ms: 0.173492
+  duration_ms: 0.32491
   type: 'test'
   ...
 # Subtest: every colour has its own shape, in both themes
 ok 15 - every colour has its own shape, in both themes
   ---
-  duration_ms: 0.058599
+  duration_ms: 0.13297
   type: 'test'
   ...
 # Subtest: three modes are offered
 ok 16 - three modes are offered
   ---
-  duration_ms: 2.225488
+  duration_ms: 3.325427
   type: 'test'
   ...
 # Subtest: today's map is the same for everyone and never the hidden one
 ok 17 - today's map is the same for everyone and never the hidden one
   ---
-  duration_ms: 0.519124
+  duration_ms: 1.076151
   type: 'test'
   ...
 # Subtest: hashing is stable
 ok 18 - hashing is stable
   ---
-  duration_ms: 0.099751
+  duration_ms: 0.26094
   type: 'test'
   ...
 # Subtest: each colour plays in its own register of one scale
 ok 19 - each colour plays in its own register of one scale
   ---
-  duration_ms: 0.097507
+  duration_ms: 0.260138
   type: 'test'
   ...
 # Subtest: permanent roads have a message
 ok 20 - permanent roads have a message
   ---
-  duration_ms: 0.130968
+  duration_ms: 0.294924
   type: 'test'
   ...
 # Subtest: expert roads set and creative has no limits (through the real WASM)
 ok 21 - expert roads set and creative has no limits (through the real WASM)
   ---
-  duration_ms: 92.950199
+  duration_ms: 71.893406
   type: 'test'
   ...
 1..21
@@ -135,4 +135,4 @@ ok 21 - expert roads set and creative has no limits (through the real WASM)
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 237.344873
+# duration_ms 240.728424

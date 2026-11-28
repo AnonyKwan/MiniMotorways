@@ -110,6 +110,9 @@ function sphereMesh(lat = 6, lon = 10) {
   return o;
 }
 
+/** One roof shape per colour, so colour never carries the meaning alone. */
+export const ROOF_KINDS = ['gable', 'flat', 'pyramid', 'dome', 'spire', 'tower'];
+
 const VS = `#version 300 es
 in vec3 aPos; in vec3 aNorm;
 in vec4 aM0; in vec4 aM1; in vec4 aM2; in vec4 aM3; in vec4 aCol;
@@ -544,12 +547,12 @@ export class Renderer3D {
     // silhouettes: every colour gets its own roof shape
     const roof = (g, x, y, z, scale, col, rot) => {
       const dk = shade(col, 0.82);
-      switch (g % 6) {
-        case 0: d.add('gable', x, y, z, scale, scale * 0.55, scale * 0.95, rot, dk); break;
-        case 1: d.add('box', x, y, z, scale * 1.02, scale * 0.12, scale * 1.02, rot, dk); d.add('box', x - scale * 0.2, y + scale * 0.12, z, scale * 0.3, scale * 0.2, scale * 0.3, rot, dk); break;
-        case 2: d.add('pyramid', x, y, z, scale * 1.35, scale * 0.7, scale * 1.35, rot, dk); break;
-        case 3: d.add('dome', x, y, z, scale * 1.05, scale * 0.9, scale * 1.05, rot, dk); break;
-        case 4: d.add('cyl', x, y, z, scale * 0.9, scale * 0.15, scale * 0.9, rot, dk); d.add('cone', x, y + scale * 0.15, z, scale * 0.9, scale * 0.6, scale * 0.9, rot, dk); break;
+      switch (ROOF_KINDS[g % 6]) {
+        case 'gable': d.add('gable', x, y, z, scale, scale * 0.55, scale * 0.95, rot, dk); break;
+        case 'flat': d.add('box', x, y, z, scale * 1.02, scale * 0.12, scale * 1.02, rot, dk); d.add('box', x - scale * 0.2, y + scale * 0.12, z, scale * 0.3, scale * 0.2, scale * 0.3, rot, dk); break;
+        case 'pyramid': d.add('pyramid', x, y, z, scale * 1.35, scale * 0.7, scale * 1.35, rot, dk); break;
+        case 'dome': d.add('dome', x, y, z, scale * 1.05, scale * 0.9, scale * 1.05, rot, dk); break;
+        case 'spire': d.add('cyl', x, y, z, scale * 0.9, scale * 0.15, scale * 0.9, rot, dk); d.add('cone', x, y + scale * 0.15, z, scale * 0.9, scale * 0.6, scale * 0.9, rot, dk); break;
         default: d.add('box', x, y, z, scale * 0.9, scale * 0.12, scale * 0.9, rot, dk); d.add('box', x, y + scale * 0.12, z, scale * 0.6, scale * 0.14, scale * 0.6, rot, shade(col, 0.7)); d.add('cyl', x, y + scale * 0.26, z, scale * 0.08, scale * 0.35, scale * 0.08, rot, p.white);
       }
     };

@@ -32,13 +32,13 @@ test('pause, options and the saved game', async ({ page }) => {
   await expect(page.locator('#pause')).toBeHidden();
 
   // leaving saves the game; the map list offers to continue it
-  const tick = await page.evaluate(() => window.__ll.core.ticks());
   await page.locator('#btn-menu').click();
+  const tick = await page.evaluate(() => JSON.parse(localStorage.getItem('littlelanes.save')).tick);
   await expect(page.locator('.card.resume')).toBeVisible();
   await page.locator('.card.resume').click();
   await expect(page.locator('#hud')).toBeVisible();
   const again = await page.evaluate(() => window.__ll.core.ticks());
-  expect(again).toBe(tick);
+  expect(again).toBe(tick); // rebuilt to exactly the saved step
   expect(await page.evaluate(() => window.__ll.core.snapshot().t)).toBeGreaterThan(0);
   await expect(page.locator('#pause')).toBeVisible(); // resumes paused
   await page.screenshot({ path: 'shots/resume.png' });

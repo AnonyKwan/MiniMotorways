@@ -677,7 +677,7 @@ function drawOverlay3d() {
     const base = r3.project(cx, 1.5, cz - 0.15);
     const ground = r3.project(cx, 0.1, cz);
     if (!base || !ground) return;
-    const ppc = r3.pxPerCell(cx, cz);
+    const ppc = Math.max(r3.pxPerCell(cx, cz), 16); // never smaller than a legible size
     if (ot > 0.01) {
       const frac = Math.min(1, ot / 50), rx = ppc * 1.5, ry = rx * 0.78;
       ctx.lineCap = 'round';

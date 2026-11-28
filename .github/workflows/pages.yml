@@ -64,6 +64,7 @@ jobs:
         run: |
           set -o pipefail
           node --test tests-js/*.test.mjs 2>&1 | tee web-test.log
+          grep -q '^# skipped 0' web-test.log || { echo 'Some JS tests were skipped'; exit 1; }
       - name: Publish logs
         if: always()
         env:

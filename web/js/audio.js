@@ -17,6 +17,7 @@ export class Sound {
     this.muted = false;
     this.step = 0;
     this.lastWarn = -10;
+    this.vol = { master: 0.8, music: 0.8, sfx: 0.8, soundscape: 2 };
   }
 
   /** Must be called from a user gesture before anything is audible. */
@@ -24,7 +25,7 @@ export class Sound {
     if (!this.ctx) {
       const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
       if (!AC) return;
-      try { this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.gain.value = 0.5; this.master.connect(this.ctx.destination); } catch (_) { this.ctx = null; }
+      try { this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination); this.musicBus = this.ctx.createGain(); this.sfxBus = this.ctx.createGain(); this.musicBus.connect(this.master); this.sfxBus.connect(this.master); this.applyVolumes(); } catch (_) { this.ctx = null; }
     }
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
@@ -32,11 +33,15 @@ export class Sound {
   /** Quiet evolving drone; `p` is the worst destination's timer share (0..1). */
   bed(p, nowSeconds) {
     if (!this.ctx || this.muted) return;
+    if (this.vol.soundscape < 1) {
+      if (this.bedNodes) for (const n of Object.values(this.bedNodes)) n.gn.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3);
+      return;
+    }
     if (!this.bedNodes) {
       const mk = (f, type, g) => {
         const o = this.ctx.createOscillator(); const gn = this.ctx.createGain();
         o.type = type; o.frequency.value = f; gn.gain.value = 0;
-        o.connect(gn); gn.connect(this.master); o.start();
+        o.connect(gn); gn.connect(this.musicBus); o.start();
         return { o, gn };
       };
       this.bedNodes = { a: mk(110, 'sine'), b: mk(164.8, 'sine'), low: mk(55, 'sawtooth') };
@@ -49,9 +54,21 @@ export class Sound {
     this.bedNodes.low.gn.gain.setTargetAtTime(p > 0.8 ? 0.03 * Math.min(1, (p - 0.8) / 0.2) : 0, t, 0.4);
   }
 
-  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.5; }
+  setMuted(m) { this.muted = m; this.applyVolumes(); }
 
-  tone(freq, dur, type, gain, when = 0, detune = 0) {
+  setVolumes(o) {
+    this.vol = { master: o.master, music: o.music, sfx: o.sfx, soundscape: o.soundscape };
+    this.applyVolumes();
+  }
+
+  applyVolumes() {
+    if (!this.master) return;
+    this.master.gain.value = this.muted ? 0 : 0.6 * this.vol.master;
+    this.musicBus.gain.value = this.vol.music;
+    this.sfxBus.gain.value = this.vol.sfx;
+  }
+
+  tone(freq, dur, type, gain, when = 0, detune = 0, bus = 'sfx') {
     if (!this.ctx || this.muted) return;
     const t = this.ctx.currentTime + when;
     const o = this.ctx.createOscillator();
@@ -60,15 +77,16 @@ export class Sound {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(gain, t + 0.015);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(this.master);
+    o.connect(g); g.connect(bus === 'music' ? this.musicBus : this.sfxBus);
     o.start(t); o.stop(t + dur + 0.05);
   }
 
   /** A pin was delivered. */
   deliver(group) {
+    if (this.vol.soundscape < 2) return;
     this.step = (this.step + 1 + (this.step % 3)) % 15;
-    this.tone(noteFreq(group, this.step), 0.7, 'sine', 0.09);
-    this.tone(noteFreq(group, this.step) * 2, 0.35, 'triangle', 0.02, 0.01);
+    this.tone(noteFreq(group, this.step), 0.7, 'sine', 0.09, 0, 0, 'music');
+    this.tone(noteFreq(group, this.step) * 2, 0.35, 'triangle', 0.02, 0.01, 0, 'music');
   }
 
   /** Something new was built or picked. */

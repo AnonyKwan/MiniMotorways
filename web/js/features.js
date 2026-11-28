@@ -194,7 +194,7 @@ export function initFeatures(app, api) {
   $('tools').appendChild(undoBtn);
   function undo() {
     if (app.screen !== 'game' || app.over) return;
-    const code = app.core.undo();
+    const code = app.perform('u');
     api.afterEdit(code, false);
     if (code === 0) api.toast('Roads put back', 900);
   }
@@ -204,7 +204,7 @@ export function initFeatures(app, api) {
   endless.id = 'btn-endless';
   $('btn-over-menu').before(endless);
   endless.addEventListener('click', () => {
-    app.core.continueEndless();
+    app.perform('n');
     app.over = false;
     app.playMode = 3;
     $('over').hidden = true;

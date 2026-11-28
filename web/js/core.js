@@ -50,6 +50,7 @@ export class Core {
     this.city = this.cities[cityIndex];
   }
   step(dt) { this.x.ll_step(dt); }
+  ticks() { return this.x.ll_ticks(); }
   snapshot() { return this.readJson(this.x.ll_snapshot()); }
   statics() { return this.readJson(this.x.ll_statics()); }
   terrain() { return this.bytes(this.x.ll_terrain()); }

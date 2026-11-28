@@ -95,6 +95,15 @@ body.photo #hud, body.photo #tools, body.photo .coach { display: none !important
 .photobar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 10px; z-index: 6; }
 .photobar button { border: 0; border-radius: 999px; padding: 10px 18px; background: var(--panel); box-shadow: var(--shadow); }
 
+.opt { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.opt small { color: var(--muted); }
+.opt input[type="range"] { width: 45%; }
+.opt select { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+.stack { display: grid; gap: 8px; }
+.stack button { padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); text-align: left; }
+.card.resume { border-color: var(--accent); }
+body.calm * { animation: none !important; transition: none !important; }
+
 /* overlays */
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20, 20, 24, 0.35); padding: 16px; }
 .sheet { background: var(--panel); border-radius: 24px; padding: 24px; max-width: 560px; width: 100%; box-shadow: var(--shadow); }

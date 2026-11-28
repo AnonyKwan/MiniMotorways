@@ -217,6 +217,8 @@ pub struct Game {
     pub topo_ver: u32,
     pub static_ver: u32,
     pub trips_total: u32,
+    /// Number of fixed simulation steps taken so far (saves replay by this).
+    pub ticks: u32,
 }
 
 impl Game {
@@ -315,6 +317,7 @@ impl Game {
             topo_ver: 1,
             static_ver: 1,
             trips_total: 0,
+            ticks: 0,
         }
     }
 
@@ -377,6 +380,7 @@ impl Game {
     }
 
     pub fn tick(&mut self, dt: f32) {
+        self.ticks += 1;
         self.time += dt;
         self.tick_spawn();
         self.tick_pins(dt);

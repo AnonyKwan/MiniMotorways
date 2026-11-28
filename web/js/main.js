@@ -6,6 +6,8 @@ import {
 import { THEMES, buildTerrainLayer, drawScene, glyph } from './render.js';
 import { loadBest, saveBest, loadPref, savePref } from './storage.js';
 import { initFeatures } from './features.js';
+import { initOptions } from './options.js';
+import { newSave, perform, replay } from './savegame.js';
 import { Renderer3D, webglAvailable } from './render3d.js';
 
 const $ = (id) => document.getElementById(id);
@@ -37,6 +39,9 @@ const app = {
   view: { zoom: 1, panX: 0, panY: 0 },
   hover: null,
   cam: null,
+  save: null,
+  saveTimer: 0,
+  quality: 1,
   r3: null,
   use3d: false,
   photo: false,
@@ -62,6 +67,13 @@ async function boot() {
   buildModes();
   buildMenu();
   features = initFeatures(app, { startGame, toast, setSpeed, afterEdit });
+  options = initOptions(app, {
+    setSpeed, showMenu, setTheme,
+    restart: () => startGame(app.cityIndex, app.seed, app.playMode, app.lastOpts || {}),
+    resume: resumeSaved,
+    setQuality: (q) => { app.quality = q; resize(); if (app.screen === 'game') sync3d(); },
+    refreshColours: () => { app.layer = null; if (app.screen === 'game') sync3d(); if (app.core) buildMenu(); },
+  });
   app.screen = 'menu';
   requestAnimationFrame(frame);
   const want = params.get('city');
@@ -157,10 +169,13 @@ function buildMenu() {
     grid.appendChild(b);
   });
   $('unlock-all').checked = app.unlockAll;
+  if (options) options.resumeCard(grid);
 }
 
 function showMenu() {
-  if (app.screen === 'game' && features) features.onLeave();
+  if (app.screen === 'game') { persistSave(); if (features) features.onLeave(); }
+  if (options && app.paused) options.setPaused(false);
+  $('pause') && ($('pause').hidden = true);
   app.screen = 'menu';
   $('menu').hidden = false;
   $('hud').hidden = true;
@@ -172,6 +187,7 @@ function showMenu() {
 
 // ---------- game ----------
 let features = null;
+let options = null;
 function startGame(cityIndex, seed, mode = app.mode, opts = {}) {
   if (app.screen === 'game' && features) features.onLeave();
   app.core.setMods(opts.mods || []);
@@ -180,7 +196,10 @@ function startGame(cityIndex, seed, mode = app.mode, opts = {}) {
   app.born = new Map();
   app.lastScore = 0;
   app.seed = seed != null ? seed : (params.get('seed') ? Number(params.get('seed')) : (Date.now() & 0x7fffffff));
-  app.core.newGame(cityIndex, app.seed, mode);
+  app.lastOpts = opts;
+  app.save = opts.save || newSave(cityIndex, app.seed, mode, opts.mods, opts.challenge);
+  if (opts.save) replay(app.core, opts.save);
+  else app.core.newGame(cityIndex, app.seed, mode);
   const c = app.core.cities[cityIndex];
   app.terrain = app.core.terrain();
   app.layer = null;
@@ -217,18 +236,36 @@ function frame(ts) {
   const dt = Math.min(0.1, Math.max(0, (ts - last) / 1000));
   last = ts;
   if (app.screen === 'game') {
-    const blocked = !$('help').hidden;
+    const blocked = !$('help').hidden || app.paused;
     if (!app.over && !blocked && SPEEDS[app.speed] > 0) app.core.step(dt * SPEEDS[app.speed]);
     app.snap = app.core.snapshot();
     if (app.snap.ver !== app.staticsVer) refreshStatics();
     soundCues();
     if (features) features.tick(app.snap);
+    app.saveTimer += dt;
+    if (app.saveTimer > 5) { app.saveTimer = 0; persistSave(); }
     syncUi();
     render(ts / 1000);
     acc += dt;
   }
   requestAnimationFrame(frame);
 }
+
+function persistSave() {
+  if (!app.save || app.over || !app.snap) return;
+  app.save.tick = app.core.ticks();
+  app.save.score = app.snap.score;
+  app.save.savedAt = Date.now();
+  savePref('save', app.save);
+}
+
+function resumeSaved(save) {
+  $('menu').hidden = true;
+  startGame(save.city, save.seed, save.mode, { mods: save.mods, challenge: save.challenge, save });
+  if (options) options.setPaused(true);
+}
+
+app.perform = (op, a, b) => perform(app.core, app.save, op, a, b);
 
 function soundCues() {
   const s = app.snap;
@@ -255,6 +292,7 @@ function render(t) {
     app.r3.top = app.photo ? 10 : 64;
     app.r3.bottom = app.photo ? 10 : 96;
     app.r3.noFog = app.photo || app.playMode === 3;
+    app.r3.reduceMotion = Boolean(app.reduceMotion);
     app.r3.setView(box, app.view.zoom, [app.view.panX, app.view.panY]);
     app.r3.draw({ statics: app.statics, snap: app.snap, born: app.born }, performance.now() / 1000);
     drawOverlay3d();
@@ -289,7 +327,7 @@ function regionBox() {
   const r = app.photo || app.playMode === 3 || !app.snap || !app.snap.region ? full : app.snap.region;
   // ease toward the target so the camera pulls out smoothly as the town grows
   if (!app.cam) app.cam = [...r];
-  else for (let i = 0; i < 4; i++) app.cam[i] += (r[i] - app.cam[i]) * 0.04;
+  else for (let i = 0; i < 4; i++) app.cam[i] += (r[i] - app.cam[i]) * (app.reduceMotion ? 1 : 0.04);
   return app.cam;
 }
 /** True once the camera has finished easing toward the open part of the map. */
@@ -411,12 +449,13 @@ function showOffer() {
 }
 
 function chooseOffer(i) {
-  const code = app.core.chooseUpgrade(i);
+  const code = app.perform('c', i);
   if (code === ERR.OK) { $('offer').hidden = true; app.snap = app.core.snapshot(); refreshStatics(); }
 }
 
 function gameOver() {
   app.over = true;
+  savePref('save', null);
   const trips = app.snap.score;
   const c = app.core.cities[app.cityIndex];
   const prev = app.best[c.id] || 0;
@@ -462,16 +501,16 @@ canvas.addEventListener('pointerdown', (e) => {
   if (cell == null) return;
   if (mode === 'road' || mode === 'erase') {
     drawing = { mode, last: cell };
-    if (mode === 'erase') { app.core.beginErase(); afterEdit(app.core.eraseCell(cell)); if (features) features.markErased(); }
+    if (mode === 'erase') { app.perform('b'); afterEdit(app.perform('e', cell)); if (features) features.markErased(); }
   } else if (mode === 'light') {
-    afterEdit(app.core.toggleLight(cell), true);
+    afterEdit(app.perform('l', cell), true);
   } else if (mode === 'round') {
-    afterEdit(app.core.toggleRoundabout(cell), true);
+    afterEdit(app.perform('o', cell), true);
   } else if (mode === 'motorway') {
     if (app.pending == null) { app.pending = cell; app.hover = { cell, color: '#3f93d8' }; }
     else {
       const a = app.pending; app.pending = null; app.hover = null;
-      if (a !== cell) afterEdit(app.core.addMotorway(a, cell), true);
+      if (a !== cell) afterEdit(app.perform('m', a, cell), true);
     }
   }
 });
@@ -504,14 +543,14 @@ canvas.addEventListener('pointermove', (e) => {
   if (drawing && cell != null && cell !== drawing.last) {
     if (drawing.mode === 'road') {
       for (const c of stepsBetween(app.statics.w, drawing.last, cell)) {
-        const code = app.core.addRoad(drawing.last, c);
+        const code = app.perform('r', drawing.last, c);
         if (code === ERR.OK || code === ERR.EXISTS) { drawing.last = c; continue; }
         toast(errorText(code));
         break;
       }
       afterEdit(0);
     } else {
-      for (const c of stepsBetween(app.statics.w, drawing.last, cell)) { app.core.eraseCell(c); drawing.last = c; }
+      for (const c of stepsBetween(app.statics.w, drawing.last, cell)) { app.perform('e', c); drawing.last = c; }
       afterEdit(0);
     }
   }
@@ -572,7 +611,11 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === '1') setSpeed(0);
   else if (e.key === '2') setSpeed(1);
   else if (e.key === '3') setSpeed(2);
-  else if (e.key === 'Escape') { if (!$('help').hidden) closeHelp(); else showMenu(); }
+  else if (e.key === 'Escape') {
+    if (!$('options').hidden) $('options').hidden = true;
+    else if (!$('help').hidden) closeHelp();
+    else if (options) options.setPaused(!app.paused);
+  }
 });
 window.addEventListener('keyup', (e) => { if (e.key === 'Control') ctrlDown = false; });
 
@@ -601,8 +644,8 @@ $('btn-over-menu').addEventListener('click', showMenu);
 $('unlock-all').addEventListener('change', (e) => { app.unlockAll = e.target.checked; savePref('unlockAll', app.unlockAll); buildMenu(); });
 
 function resize() {
-  if (app.r3) app.r3.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, 2.5));
-  app.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  if (app.r3) app.r3.resize(window.innerWidth, window.innerHeight, Math.min((window.devicePixelRatio || 1) * (app.quality || 1), 3));
+  app.dpr = Math.min((window.devicePixelRatio || 1) * (app.quality || 1), 3);
   app.W = window.innerWidth; app.H = window.innerHeight;
   canvas.width = Math.round(app.W * app.dpr);
   canvas.height = Math.round(app.H * app.dpr);

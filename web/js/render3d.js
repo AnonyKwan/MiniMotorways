@@ -533,7 +533,7 @@ export class Renderer3D {
     d.clear(); sh.clear();
     const xz = (c) => [(c % w) + 0.5, Math.floor(c / w) + 0.5];
     const pop = (key) => {
-      if (!born) return 1;
+      if (!born || this.reduceMotion) return 1;
       if (!born.has(key)) born.set(key, now);
       const t = (now - born.get(key)) / 0.5;
       if (t >= 1) return 1;

@@ -106,8 +106,9 @@ impl Game {
             }
         }
         format!(
-            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{},\"eff\":[{},{},{}],\"region\":[{},{},{},{}],\"transit\":{},\"stats\":[{},{},{},{},{},{},{},{},{},{}]}}",
+            "{{\"t\":{},\"tick\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{},\"eff\":[{},{},{}],\"region\":[{},{},{},{}],\"transit\":{},\"stats\":[{},{},{},{},{},{},{},{},{},{}]}}",
             num(self.time),
+            self.ticks,
             num(self.day()),
             self.week,
             num((self.week_timer / SEC_PER_WEEK).min(1.0)),

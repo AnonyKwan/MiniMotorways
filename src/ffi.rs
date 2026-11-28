@@ -113,6 +113,12 @@ pub extern "C" fn ll_step(dt: f32) {
     }
 }
 
+/// Steps taken so far.
+#[no_mangle]
+pub extern "C" fn ll_ticks() -> u32 {
+    game().map_or(0, |g| g.ticks)
+}
+
 #[no_mangle]
 pub extern "C" fn ll_snapshot() -> u32 {
     match game() {

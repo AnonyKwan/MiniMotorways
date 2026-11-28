@@ -6,6 +6,17 @@ export const GROUP_COLORS = {
   light: ['#ef6a58', '#1fa89b', '#f0b13a', '#8566d6', '#3f93d8', '#e5659f'],
   dark: ['#ff7f6b', '#3dd1c1', '#ffc857', '#a58bf0', '#63b1f5', '#ff82b8'],
 };
+const NORMAL_COLORS = { light: [...GROUP_COLORS.light], dark: [...GROUP_COLORS.dark] };
+const COLORBLIND_COLORS = {
+  light: ['#d98200', '#3aa0dc', '#00946b', '#c9b900', '#0059a8', '#c4470c'],
+  dark: ['#ffb02e', '#6cc4f5', '#2fd5a1', '#f6e65a', '#5aa0f0', '#ff7a3d'],
+};
+/** Swaps every colour in place so all drawing code follows without changes. */
+export function setColorblind(on) {
+  const src = on ? COLORBLIND_COLORS : NORMAL_COLORS;
+  for (const k of ['light', 'dark']) src[k].forEach((c, i) => { GROUP_COLORS[k][i] = c; });
+}
+
 /** Distinct marks so colours never carry the meaning alone. */
 export const GROUP_SHAPES = ['circle', 'square', 'triangle', 'diamond', 'pentagon', 'star'];
 

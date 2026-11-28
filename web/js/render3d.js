@@ -166,11 +166,17 @@ function program(gl, vs, fs) {
   return p;
 }
 
+let webglProbe = null;
+/** Checks once (and releases the probe context so browsers do not run out of them). */
 export function webglAvailable() {
+  if (webglProbe !== null) return webglProbe;
   try {
     const c = document.createElement('canvas');
-    return Boolean(c.getContext('webgl2'));
-  } catch (_) { return false; }
+    const gl = c.getContext('webgl2');
+    webglProbe = Boolean(gl);
+    if (gl) { const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); }
+  } catch (_) { webglProbe = false; }
+  return webglProbe;
 }
 
 const hex = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };

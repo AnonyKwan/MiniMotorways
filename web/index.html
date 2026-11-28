@@ -16,11 +16,11 @@
     // Little Lanes browser services: saved scores (localStorage) and generated sound (Web Audio).
     //
     // All sound is made here from oscillators and noise; nothing is recorded. The music is a
-    // small generative score that the game conducts: a beat clock, a scale that drifts to a
-    // neighbouring scale by keeping most of its notes, a soft pad that fills the quiet start,
-    // and one plucked pulse per busy colour that thins out (gets quieter each) as the town
-    // grows, so a smooth-running town settles into a calm hum. Player sounds take their pitch
-    // from the current scale and land on the beat grid, so building plays along.
+    // small generative score that the game conducts: a beat clock, a bright major key per map
+    // walking through a warm four-chord loop, soft electric-piano chords that fill the quiet
+    // start, and one plucked voice per busy colour that only plays notes that sit well over the
+    // current chord. Player sounds use the key's major pentatonic and land on the beat grid, so
+    // building always plays along in tune.
     (function () {
       var ctx = null, bus = null;
       function audio() {
@@ -46,13 +46,13 @@
         var master = a.createGain(); master.gain.value = 2.2;
         comp.connect(master); master.connect(a.destination);
         var verb = a.createConvolver();
-        var len = Math.floor(a.sampleRate * 2.2), ir = a.createBuffer(2, len, a.sampleRate);
+        var len = Math.floor(a.sampleRate * 1.2), ir = a.createBuffer(2, len, a.sampleRate);
         for (var ch = 0; ch < 2; ch++) {
           var d = ir.getChannelData(ch);
-          for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+          for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 4);
         }
         verb.buffer = ir;
-        var verbGain = a.createGain(); verbGain.gain.value = 0.28;
+        var verbGain = a.createGain(); verbGain.gain.value = 0.16;
         verb.connect(verbGain); verbGain.connect(comp);
         var music = a.createGain(); music.gain.value = 0;
         var sfx = a.createGain(); sfx.gain.value = 1;
@@ -74,23 +74,35 @@
       }
 
       // ---- Harmony --------------------------------------------------------------------
-      var TYPES = [[0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 9, 10],
-                   [0, 2, 4, 5, 7, 9, 10], [0, 2, 4, 6, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10]];
-      var ROOTS = [57, 50, 53]; // A, D and F: one home key per map
-      var scale = { root: 57, pcs: TYPES[0] }, chordAge = 0;
-      function pcsOf(sc) { return sc.pcs.map(function (p) { return (p + sc.root) % 12; }); }
-      function shared(a, b) { var n = 0; a.forEach(function (p) { if (b.indexOf(p) >= 0) n++; }); return n; }
-      // Move to a nearby scale that keeps most of the current notes, so changes feel soft.
+      // Major keys only: C, F and D, one per map. Sound effects use the major pentatonic,
+      // which has no clashing notes; the music walks a loop of major-key chords.
+      var ROOTS = [60, 65, 62];
+      var PENT = [0, 2, 4, 7, 9], MAJ = [0, 2, 4, 5, 7, 9, 11];
+      // Chord loops by scale degree (0 = I, 3 = IV, 4 = V, 5 = vi): warm pop progressions.
+      var PROGS = [[0, 4, 5, 3], [0, 5, 3, 4], [3, 0, 4, 0], [0, 3, 0, 4], [5, 3, 0, 4]];
+      var scale = { root: 60, pcs: PENT }, prog = PROGS[0], chordIdx = 0;
+      function key() { return ROOTS[state.map]; }
       function nextScale() {
-        var cur = pcsOf(scale), want = Math.min(4, cur.length - 1);
-        for (var tries = 0; tries < 100; tries++) {
-          var t = TYPES[Math.floor(Math.random() * (tries < 50 ? 2 : TYPES.length))];
-          var r = scale.root + Math.floor(Math.random() * 7) - 3;
-          var cand = { root: r, pcs: t };
-          var sh = shared(cur, pcsOf(cand));
-          if (sh >= want && !(r === scale.root && t === scale.pcs) && Math.abs(r - ROOTS[state.map]) <= 5) { scale = cand; return; }
+        scale = { root: key(), pcs: PENT };
+        var p; do { p = PROGS[Math.floor(Math.random() * PROGS.length)]; } while (p === prog);
+        prog = p; chordIdx = 0;
+      }
+      // The current chord as MIDI notes around middle C (root, third, fifth).
+      function chord() {
+        var d = prog[chordIdx % prog.length];
+        return [0, 2, 4].map(function (k) { var i = d + k; return key() + MAJ[i % 7] + 12 * Math.floor(i / 7); });
+      }
+      // Notes that sound good over the chord: its own tones plus the pentatonic notes that sit
+      // at least a whole tone from every chord tone. Returned across two octaves, low to high.
+      function melodyNotes() {
+        var c = chord().map(function (m) { return m % 12; }), outN = [];
+        for (var m = key(); m < key() + 24; m++) {
+          var pc = m % 12, inPent = PENT.indexOf((pc - key() % 12 + 12) % 12) >= 0;
+          var isChord = c.indexOf(pc) >= 0;
+          var clash = c.some(function (q) { var dd = Math.abs(pc - q); dd = Math.min(dd, 12 - dd); return dd === 1; });
+          if (isChord || (inPent && !clash)) outN.push(m);
         }
-        scale = { root: ROOTS[state.map], pcs: TYPES[0] };
+        return outN;
       }
       // MIDI note for scale degree `deg` (any integer) above `base` octave.
       function note(deg, octave) {
@@ -135,21 +147,32 @@
           o.start(t); o.stop(t + pt[2] + 0.05);
         });
       }
-      // A slow pad chord that swells in and out.
+      // A soft electric-piano chord: sine tones with a gentle bell on top, slow fade, no detune.
       function pad(ms, t, dur, vol) {
         var a = ctx;
         ms.forEach(function (m, k) {
-          [-7, 7].forEach(function (cents) {
-            var o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain();
-            o.type = "triangle"; o.frequency.value = hz(m); o.detune.value = cents;
-            f.type = "lowpass"; f.frequency.value = 900;
-            g.gain.setValueAtTime(0.0001, t);
-            g.gain.linearRampToValueAtTime(vol / ms.length, t + dur * 0.4);
-            g.gain.linearRampToValueAtTime(0.0001, t + dur);
-            o.connect(f); f.connect(g); g.connect(out(1, (k - 1) * 0.3, { dest: bus.music, send: 0.7 }));
+          [[1, 1], [2, 0.18]].forEach(function (pt) {
+            var o = a.createOscillator(), g = a.createGain();
+            o.type = "sine"; o.frequency.value = hz(m) * pt[0];
+            var v = vol * pt[1] / ms.length;
+            g.gain.setValueAtTime(0.0001, t + k * 0.025);
+            g.gain.exponentialRampToValueAtTime(v, t + k * 0.025 + 0.02);
+            g.gain.exponentialRampToValueAtTime(v * 0.4, t + dur * 0.35);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            o.connect(g); g.connect(out(1, (k - 1) * 0.3, { dest: bus.music, send: 0.35 }));
             o.start(t); o.stop(t + dur + 0.05);
           });
         });
+      }
+      // A light woodblock tick, for keeping time when a shop is getting busy.
+      function tick2(t, vol) {
+        var a = ctx, o = a.createOscillator(), g = a.createGain();
+        o.type = "sine"; o.frequency.setValueAtTime(hz(key() + 31), t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+        o.connect(g); g.connect(out(1, 0.25, { dest: bus.music, send: 0.1 }));
+        o.start(t); o.stop(t + 0.1);
       }
       function noiseHit(t, vol, freq, dur) {
         var a = ctx, src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
@@ -176,11 +199,11 @@
       var lastWeek = 1, wantChange = false;
 
       // ---- Beat clock (a short look-ahead scheduler) ------------------------------------
-      var BPM = 84, STEP = 60 / BPM / 4; // sixteenth notes
+      var BPM = 92, STEP = 60 / BPM / 4; // sixteenth notes
       var nextStep = 0, step = 0;
       var PATTERNS = [[4, 4, 4, 4], [6, 6, 4], [3, 3, 2, 3, 3, 2], [8, 8], [5, 5, 6], [4, 2, 2, 4, 4]];
       var voices = [];
-      for (var v = 0; v < 6; v++) voices.push({ pat: PATTERNS[v], at: 0, idx: 0, deg: v * 2, pan: [-0.5, 0.5, -0.2, 0.3, -0.6, 0.6][v], oct: [0, 1, 0, 1, -1, 1][v] });
+      for (var v = 0; v < 6; v++) voices.push({ pat: PATTERNS[v], at: 0, idx: 0, pos: [2, 6, 4, 8, 1, 7][v], pan: [-0.5, 0.5, -0.2, 0.3, -0.6, 0.6][v] });
       function schedule() {
         if (!ctx || ctx.state !== "running") return;
         var a = ctx, now = a.currentTime;
@@ -196,41 +219,45 @@
       function tick(t, st, inGame) {
         var bar = st % 16 === 0, beat = st % 4 === 0;
         if (bar) {
-          chordAge++;
           if (state.week !== lastWeek) { lastWeek = state.week; wantChange = true; }
-          if (wantChange || chordAge >= 4) { nextScale(); chordAge = 0; wantChange = false; }
+          if (scale.root !== key()) wantChange = true;
+          if (st > 0) chordIdx++;
+          if (wantChange || chordIdx >= prog.length * 2) { nextScale(); wantChange = false; }
         }
-        var busy = state.cars;
-        // Pad: always there on the title screen; in a game it fills the quiet start and
-        // fades back as cars take over.
-        if (st % 32 === 0) {
-          var padVol = inGame ? 0.09 * Math.max(0.15, 1 - busy / 10) : 0.1;
-          pad([note(0, -1), note(2, -1), note(4, -1)], t, STEP * 34, padVol);
+        var busy = state.cars, ch = chord();
+        // Chords: one per bar. Always there on the title screen; in a game they fill the quiet
+        // start and soften as cars take over.
+        if (bar) {
+          var padVol = inGame ? 0.11 * Math.max(0.35, 1 - busy / 12) : 0.12;
+          pad([ch[0] - 12, ch[1] - 12, ch[2] - 12], t, STEP * 16, padVol);
+          if (!inGame) pad([ch[1], ch[2]], t + STEP * 8, STEP * 8, 0.05);
         }
         if (!inGame) return;
-        // One plucked pulse per busy colour; each gets quieter as more join in.
+        // One plucked voice per busy colour; each gets quieter as more join in. Voices step
+        // through the notes that fit the chord, mostly by small steps.
+        var mel = melodyNotes();
         var active = busy === 0 ? 0 : Math.min(state.colors, 1 + Math.floor(busy / 3));
         for (var i = 0; i < active; i++) {
           var vc = voices[i];
           if (st >= vc.at) {
             var stepLen = vc.pat[vc.idx % vc.pat.length]; vc.idx++;
             vc.at = st + stepLen;
-            vc.deg += [0, 1, -1, 2, -2, 1][Math.floor(Math.random() * 6)];
-            vc.deg = Math.max(-2, Math.min(9, vc.deg));
+            vc.pos += [0, 1, -1, 1, -1, 2, -2][Math.floor(Math.random() * 7)];
+            vc.pos = Math.max(0, Math.min(mel.length - 1, vc.pos));
             var vol = 0.07 / Math.sqrt(active) * (0.8 + Math.random() * 0.3);
-            pluck(note(vc.deg, vc.oct), t, 0.9, vol, vc.pan, bus.music);
+            pluck(mel[vc.pos], t, 0.8, vol, vc.pan, bus.music, 3000);
           }
         }
         for (var k = active; k < voices.length; k++) voices[k].at = st;
-        // Bass on the bar once the town has a few cars about.
-        if (bar && busy >= 2 && state.week >= 2) pluck(note(0, -2), t, 1.8, 0.07, 0, bus.music, 700);
+        // A round bass on the chord root once the town has a few cars about.
+        if (busy >= 2 && state.week >= 2 && (bar || st % 16 === 10)) pluck(ch[0] - 24, t, 1.2, 0.07, 0, bus.music, 900);
         // Very quiet brushed off-beats when the town is busy.
-        if (busy >= 6 && st % 4 === 2) noiseHit(t, 0.012 + Math.min(busy, 20) * 0.0006, 6000, 0.06);
-        // A low, slow pulse that rises with the danger of a shop overflowing.
-        if (beat && state.danger >= 40 && state.mode === 1) {
+        if (busy >= 6 && st % 4 === 2) noiseHit(t, 0.010 + Math.min(busy, 20) * 0.0005, 7000, 0.05);
+        // When a shop is close to overflowing, a light woodblock keeps time, quicker as it
+        // gets worse: a nudge to look, not a scare.
+        if (state.danger >= 40 && state.mode === 1) {
           var d = state.danger / 100;
-          pluck(note(0, -2), t, 0.5, 0.05 + 0.08 * d, 0, bus.music, 400);
-          if (state.danger >= 75 && st % 8 === 0) pluck(note(0, -2) + 1, t + STEP * 2, 0.4, 0.06 * d, 0, bus.music, 400);
+          if (st % 4 === 2 || (state.danger >= 75 && st % 2 === 1)) tick2(t, 0.02 + 0.04 * d);
         }
       }
       // Effects land on the next sixteenth so they play along with the music.
@@ -254,19 +281,20 @@
           case 2: // a new week and its upgrade card: a gentle two-note rise
             pluck(note(0, 0), t, 1.2, 0.08, -0.2, bus.sfx); pluck(note(4, 0), t + STEP * 2, 1.4, 0.08, 0.2, bus.sfx);
             pluck(note(7, 0), t + STEP * 4, 1.6, 0.06, 0, bus.sfx); wantChange = true; break;
-          case 3: // warning: two soft low notes a semitone apart
-            pluck(note(0, -1), t, 0.6, 0.11, 0, bus.sfx, 700); pluck(note(0, -1) + 1, t + STEP * 2, 0.7, 0.1, 0, bus.sfx, 700); break;
+          case 3: // warning: a soft falling pair, an "uh-oh" rather than an alarm
+            pluck(note(4, 0), t, 0.5, 0.08, 0, bus.sfx, 1600); pluck(note(2, 0), t + STEP * 2, 0.7, 0.08, 0, bus.sfx, 1400); break;
           case 4: // something new appears, or a junction is placed: a small mallet pair
             pluck(note(2, 1), t, 0.4, 0.05, 0.3, bus.sfx, 3000); pluck(note(4, 1), t + STEP, 0.5, 0.04, 0.3, bus.sfx, 3000); break;
-          case 5: // game over: the scale falls away slowly
-            [4, 2, 0, -3].forEach(function (d, i) { pluck(note(d, 0), t + i * STEP * 3, 1.6, 0.09, 0, bus.sfx, 1400); }); break;
+          case 5: // game over: the tune settles home slowly
+            [4, 3, 1, 0].forEach(function (d, i) { pluck(note(d, 0), t + i * STEP * 3, 1.6, 0.09, 0, bus.sfx, 1400); }); break;
           case 6: // UI click
             pluck(note(4, 1), a.currentTime, 0.12, 0.035, 0, bus.sfx, 3500); break;
           case 8: // a horn: two reedy notes, a touch out of tune, on the beat
-            var m = note(2, 0) + 0.18;
+            var m = note(2, 0);
             [0, 0.07].forEach(function (off) {
               var o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain();
               o.type = "sawtooth"; o.frequency.value = hz(m + (off ? 4 : 0));
+              o.detune.value = 0;
               f.type = "lowpass"; f.frequency.value = 1300;
               g.gain.setValueAtTime(0.0001, t);
               g.gain.exponentialRampToValueAtTime(0.03, t + 0.02);

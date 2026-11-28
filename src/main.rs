@@ -279,14 +279,10 @@ enum Action {
     /// Back to the map picker.
     Maps,
     Undo,
-    Tilt(usize),
     /// Toggle the colour-blind shapes.
     Shapes,
 }
 
-/// Camera tilt choices in the pause menu, in degrees (90 = straight down).
-const TILTS: [(f32, &str); 4] = [(45.0, "Low"), (render3d::DEFAULT_TILT, "Default"), (72.0, "High"), (90.0, "Top")];
-const TILT_KEY: i32 = 11;
 const SHAPES_KEY: i32 = 12;
 /// Road strokes kept for undo.
 const UNDO_DEPTH: usize = 10;
@@ -321,7 +317,10 @@ struct Game {
     zoom: f32,
     pan: Vec2,
     mid_drag: Option<Vec2>,
-    pinch: Option<(f32, Vec2)>,
+    /// Finger spread, centre and the two finger ids of the pinch last frame.
+    pinch: Option<(f32, Vec2, u64, u64)>,
+    /// Seconds since the current road stroke began.
+    stroke_age: f32,
     touch_lock: bool,
     new_best: bool,
     trip_cooldown: f32,
@@ -333,8 +332,6 @@ struct Game {
     title_cache: render3d::WorldCache,
     /// Pause menu open over the game.
     menu: bool,
-    /// Index into TILTS.
-    tilt: usize,
     /// Colour-blind shapes on homes, shops and pins.
     shapes: bool,
     /// The camera starts close on the town and eases out as it grows, until the player
@@ -373,6 +370,7 @@ impl Game {
             pan: Vec2::ZERO,
             mid_drag: None,
             pinch: None,
+            stroke_age: 0.0,
             touch_lock: false,
             new_best: false,
             trip_cooldown: 0.0,
@@ -381,19 +379,11 @@ impl Game {
             world_cache: Default::default(),
             title_cache: Default::default(),
             menu: false,
-            tilt: match platform::load(TILT_KEY) {
-                k @ 1..=4 => k as usize - 1,
-                _ => 1,
-            },
             shapes: platform::load(SHAPES_KEY) == 1,
             follow: true,
             stroke: Vec::new(),
             undo: Vec::new(),
         }
-    }
-
-    fn tilt_deg(&self) -> f32 {
-        TILTS[self.tilt.min(TILTS.len() - 1)].0
     }
 
     /// Reverse the last road stroke.
@@ -429,7 +419,7 @@ impl Game {
     }
 
     fn scene(&self) -> render3d::Scene {
-        render3d::Scene::with_tilt(HUD_H * ui_scale(), BAR_H * ui_scale(), self.zoom, self.pan, self.tilt_deg())
+        render3d::Scene::with_tilt(HUD_H * ui_scale(), BAR_H * ui_scale(), self.zoom, self.pan, render3d::DEFAULT_TILT)
     }
 
     fn clamp_pan(&mut self) {
@@ -522,10 +512,6 @@ impl Game {
             Action::Shapes => {
                 self.shapes = !self.shapes;
                 platform::save(SHAPES_KEY, self.shapes as i32);
-            }
-            Action::Tilt(i) => {
-                self.tilt = i.min(TILTS.len() - 1);
-                platform::save(TILT_KEY, self.tilt as i32 + 1);
             }
             Action::Choose(i) => {
                 self.sim.choose(i);
@@ -634,7 +620,7 @@ fn undo_rect() -> Rect {
 
 fn menu_card() -> Rect {
     let w = (uw() - 24.0).min(380.0);
-    let h = 428.0;
+    let h = 308.0;
     Rect::new((uw() - w) / 2.0, ((uh() - h) / 2.0).max(HUD_H), w, h)
 }
 
@@ -646,12 +632,8 @@ fn menu_buttons() -> Vec<Btn> {
         Btn { rect: Rect::new(x, c.y + 126.0, (w - 10.0) / 2.0, 46.0), action: Action::Restart },
         Btn { rect: Rect::new(x + (w + 10.0) / 2.0, c.y + 126.0, (w - 10.0) / 2.0, 46.0), action: Action::Maps },
     ];
-    let seg = w / TILTS.len() as f32;
-    for i in 0..TILTS.len() {
-        out.push(Btn { rect: Rect::new(x + i as f32 * seg, c.y + 222.0, seg, 40.0), action: Action::Tilt(i) });
-    }
-    out.push(Btn { rect: Rect::new(x, c.y + 296.0, w, 46.0), action: Action::Shapes });
-    out.push(Btn { rect: Rect::new(x, c.y + 352.0, w, 46.0), action: Action::Mute });
+    out.push(Btn { rect: Rect::new(x, c.y + 182.0, w, 46.0), action: Action::Shapes });
+    out.push(Btn { rect: Rect::new(x, c.y + 238.0, w, 46.0), action: Action::Mute });
     out
 }
 
@@ -896,7 +878,7 @@ async fn main() {
         let time = get_time() as f32;
         match g.screen {
             Screen::Title => {
-                let scene = render3d::Scene::with_tilt(0.0, 0.0, 1.0, Vec2::ZERO, g.tilt_deg());
+                let scene = render3d::Scene::with_tilt(0.0, 0.0, 1.0, Vec2::ZERO, render3d::DEFAULT_TILT);
                 set_camera(&scene.cam);
                 render3d::draw_world(&g.title_sim, time, &render3d::Highlight { tile: None, ghost: render3d::Ghost::None, ok: true, flash: None, highway_from: None }, &mut g.title_cache, &[]);
                 set_camera(&ui_camera());
@@ -1020,18 +1002,30 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     }
 
     // Two-finger pinch and pan
-    let ts = touches();
+    // The view follows the fingers exactly: the ground under the two fingers stays under them.
+    let mut ts: Vec<Touch> = touches().into_iter().filter(|t| !matches!(t.phase, TouchPhase::Ended | TouchPhase::Cancelled)).collect();
+    ts.sort_by_key(|t| t.id);
+    g.stroke_age += dt;
     if ts.len() >= 2 {
-        g.touch_lock = true;
+        if !g.touch_lock {
+            // The first finger of a pan landed a moment early and began a road: take it back.
+            if g.stroke_age < 0.5 {
+                cancel_stroke(g);
+            }
+            g.touch_lock = true;
+        }
         let (a, b) = (ts[0].position, ts[1].position);
         let (d, c) = ((a - b).length(), (a + b) * 0.5);
-        if let Some((d0, c0)) = g.pinch {
-            if d0 > 1.0 {
-                g.zoom_at(d / d0, c);
+        match g.pinch {
+            Some((d0, c0, ia, ib)) if ia == ts[0].id && ib == ts[1].id => {
+                if d0 > 1.0 {
+                    g.zoom_at((d / d0).clamp(0.85, 1.18), c);
+                }
+                g.drag_view(c0, c);
             }
-            g.drag_view(c0, c);
+            _ => {}
         }
-        g.pinch = Some((d, c));
+        g.pinch = Some((d, c, ts[0].id, ts[1].id));
     } else {
         g.pinch = None;
         if ts.is_empty() {
@@ -1069,6 +1063,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
         g.last_tile = None;
         g.drag_erase = pressed_r || g.tool == Tool::Erase;
         g.stroke.clear();
+        g.stroke_age = 0.0;
     }
     let dragging = (down_l && drawing) || down_r;
     if dragging && !over_ui {
@@ -1104,6 +1099,18 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
         g.last_tile = None;
         end_stroke(g);
     }
+}
+
+/// Undo the stroke in progress without filing it, as if it never happened.
+fn cancel_stroke(g: &mut Game) {
+    for (p, built) in std::mem::take(&mut g.stroke).into_iter().rev() {
+        if built {
+            g.sim.erase_road(p);
+        } else {
+            g.sim.place_road(p);
+        }
+    }
+    g.last_tile = None;
 }
 
 /// File the finished stroke on the undo stack.
@@ -1473,7 +1480,6 @@ fn draw_menu(g: &Game, btns: &[Btn], m: Vec2) {
     let c = menu_card();
     card(c, PAPER);
     text_centered("Paused", c.center().x, c.y + 48.0, 30.0, INK);
-    text("Camera tilt", c.x + 24.0, c.y + 208.0, 17.0, with_alpha(INK, 0.65));
     for b in btns {
         let r = b.rect;
         let hovered = r.contains(m);
@@ -1493,19 +1499,6 @@ fn draw_menu(g: &Game, btns: &[Btn], m: Vec2) {
                     _ => "Sound: on",
                 };
                 text_centered(label, r.center().x, r.y + 30.0, 20.0, INK);
-            }
-            Action::Tilt(i) => {
-                let first = i == 0;
-                if first {
-                    let all = btns.iter().filter(|b| matches!(b.action, Action::Tilt(_))).map(|b| b.rect).fold(r, |a, b| a.combine_with(b));
-                    pill(all.x, all.y, all.w, all.h, CHIP);
-                }
-                if g.tilt == i {
-                    pill(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0, INK);
-                } else if hovered {
-                    pill(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0, Color::new(0.0, 0.0, 0.0, 0.08));
-                }
-                text_centered(TILTS[i].1, r.center().x, r.y + 26.0, 17.0, if g.tilt == i { WHITE } else { INK });
             }
             _ => {}
         }

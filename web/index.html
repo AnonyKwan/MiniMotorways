@@ -1,1 +1,85 @@
-<!doctype html><title>Little Lanes</title><p>Building…
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="description" content="Little Lanes: draw roads so every home reaches a place of its own colour. A small traffic puzzle that runs in your browser.">
+  <meta name="theme-color" content="#efe9dc">
+  <title>Little Lanes</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23efe9dc'/%3E%3Cpath d='M5 24 L14 12 L19 18 L27 7' fill='none' stroke='%236b7480' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='5' cy='24' r='3.5' fill='%23ef6a58'/%3E%3Ccircle cx='27' cy='7' r='3.5' fill='%231fa89b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="stage" aria-label="Game board" role="img"></canvas>
+
+  <header id="hud" hidden>
+    <div class="hud-left">
+      <button id="btn-menu" class="chip" aria-label="Back to the map list">☰ Maps</button>
+      <span id="hud-city" class="city"></span>
+    </div>
+    <div class="hud-mid">
+      <span class="score"><b id="hud-score">0</b> trips</span>
+      <span id="hud-clock" class="clock">Week 1</span>
+      <span class="weekbar" aria-hidden="true"><i id="hud-week"></i></span>
+    </div>
+    <div class="hud-right">
+      <button id="speed-0" class="chip" aria-label="Pause" title="Pause (1 or Space)">⏸</button>
+      <button id="speed-1" class="chip on" aria-label="Normal speed" title="Normal speed (2)">▶</button>
+      <button id="speed-2" class="chip" aria-label="Fast forward" title="Fast forward (3)">⏩</button>
+      <button id="btn-theme" class="chip" aria-label="Switch light and dark" title="Light / dark">◐</button>
+      <button id="btn-help" class="chip" aria-label="How to play" title="How to play">?</button>
+    </div>
+  </header>
+
+  <nav id="tools" hidden aria-label="Tools"></nav>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <main id="menu" hidden>
+    <div class="menu-head">
+      <h1>Little Lanes</h1>
+      <p>Draw roads so every home reaches a place of its own colour. Keep the pins from piling up.</p>
+    </div>
+    <div id="city-grid" class="grid"></div>
+    <footer class="menu-foot">
+      <label><input type="checkbox" id="unlock-all"> Unlock every map</label>
+      <button id="btn-theme-menu" class="chip">◐ Light / dark</button>
+    </footer>
+  </main>
+
+  <section id="offer" class="overlay" hidden aria-labelledby="offer-title">
+    <div class="sheet">
+      <h2 id="offer-title">A new week begins</h2>
+      <p>Pick one upgrade. The game keeps running while you decide.</p>
+      <div id="offer-cards" class="cards"></div>
+    </div>
+  </section>
+
+  <section id="over" class="overlay" hidden aria-labelledby="over-title">
+    <div class="sheet">
+      <h2 id="over-title">Too many people waiting</h2>
+      <p id="over-text"></p>
+      <div class="row">
+        <button id="btn-retry" class="primary">Try again</button>
+        <button id="btn-over-menu">All maps</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="help" class="overlay" hidden aria-labelledby="help-title">
+    <div class="sheet">
+      <h2 id="help-title">How to play</h2>
+      <ul class="howto">
+        <li><b>Connect colours.</b> Drag from a home to a big building of the same colour and shape. Cars do the rest.</li>
+        <li><b>Watch the pins.</b> Pins pile up at a building. More than six starts a red countdown; keep cars coming.</li>
+        <li><b>Spend road tiles wisely.</b> Every road piece costs one tile. Erasing gives it back.</li>
+        <li><b>Pick an upgrade each week.</b> Bridges cross water, tunnels go through hills, lights and roundabouts tame junctions, motorways jump over everything.</li>
+      </ul>
+      <p class="keys">Draw: drag · Erase: right-drag, <kbd>Ctrl</kbd> or <kbd>Tab</kbd> · Pause: <kbd>Space</kbd> · Speed: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · Zoom: wheel or pinch · Pan: middle-drag or two fingers</p>
+      <div class="row"><button id="btn-help-close" class="primary">Got it</button></div>
+    </div>
+  </section>
+
+  <noscript><p class="nojs">Little Lanes needs JavaScript and WebAssembly.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

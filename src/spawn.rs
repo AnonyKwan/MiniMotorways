@@ -3,6 +3,9 @@ use crate::consts::*;
 use crate::game::*;
 use crate::terrain::LAND;
 
+/// Marker used by the generated city data for "any colour".
+pub const ANY_GROUP: u8 = 255;
+
 impl Game {
     fn cell_free(&self, x: i32, y: i32) -> bool {
         if !self.in_bounds(x, y) {
@@ -170,7 +173,13 @@ impl Game {
     pub fn tick_spawn(&mut self) {
         let city = self.city;
         while self.next_plan < city.plan.len() && city.plan[self.next_plan].0 * SEC_PER_DAY <= self.time {
-            let g = city.plan[self.next_plan].1.min(city.groups.saturating_sub(1));
+            let mut g = city.plan[self.next_plan].1;
+            if g == ANY_GROUP {
+                // "any colour": pick one that already has a destination
+                let live: Vec<u8> = (0..city.groups).filter(|&c| self.groups_with_dest(c as usize) > 0).collect();
+                g = if live.is_empty() { 0 } else { live[self.rng.below(live.len() as u32) as usize] };
+            }
+            let g = g.min(city.groups.saturating_sub(1));
             self.pending.push(PendingDest { group: g, retry_at: self.time, fails: 0 });
             self.next_plan += 1;
         }

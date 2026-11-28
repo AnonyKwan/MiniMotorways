@@ -12,7 +12,8 @@ for r in rows("city_starting_packages.csv"):
 plan = collections.defaultdict(list)
 for r in rows("planned_buildings.csv"):
     if r["type"].startswith("Demand"):
-        plan[r["bundle"]].append((float(r["nominalSpawnDay"]), int(r["groupIndex"])))
+        g = int(r["groupIndex"])
+        plan[r["bundle"]].append((float(r["nominalSpawnDay"]), g if g >= 0 else 255))  # 255: any colour
 rules = collections.defaultdict(list)
 for r in rows("weekly_upgrades.csv"):
     cur = []

@@ -138,7 +138,7 @@ fn every_city_has_a_plan_and_an_upgrade_pool() {
         assert!(!c.plan.is_empty(), "{} has planned buildings", c.id);
         assert!(!c.rules.is_empty(), "{} has upgrade rules", c.id);
         assert_eq!(c.osc.len(), c.groups as usize, "{} oscillation per group", c.id);
-        assert!(c.plan.iter().all(|p| p.1 < c.groups), "{} plan groups in range", c.id);
+        assert!(c.plan.iter().all(|p| p.1 < c.groups || p.1 == 255), "{} plan groups in range", c.id);
         assert!(c.plan.windows(2).all(|w| w[0].0 <= w[1].0), "{} plan sorted", c.id);
     }
 }

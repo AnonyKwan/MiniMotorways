@@ -63,7 +63,7 @@ jobs:
       - name: Test the browser code against the real WebAssembly
         run: |
           set -o pipefail
-          node --test tests-js/ 2>&1 | tee web-test.log
+          node --test tests-js/*.test.mjs 2>&1 | tee web-test.log
       - name: Publish logs
         if: always()
         env:

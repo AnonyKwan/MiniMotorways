@@ -284,6 +284,8 @@ enum Action {
 }
 
 const SHAPES_KEY: i32 = 12;
+/// How far, in CSS pixels, a finger may wander and still count as a tap or a rest.
+const TAP_SLOP_CSS: f32 = 10.0;
 /// Road strokes kept for undo.
 const UNDO_DEPTH: usize = 10;
 
@@ -319,8 +321,12 @@ struct Game {
     mid_drag: Option<Vec2>,
     /// Finger spread, centre and the two finger ids of the pinch last frame.
     pinch: Option<(f32, Vec2, u64, u64)>,
-    /// Seconds since the current road stroke began.
-    stroke_age: f32,
+    /// The current left press began on the map (not on a button), so it may draw.
+    stroke_on: bool,
+    /// A finger is down but hasn't yet moved or held long enough to start a road: (where, how long).
+    pend: Option<(Vec2, f32)>,
+    /// A finger tap with a junction or highway tool, acted on when it lifts: (where, how long).
+    tap: Option<(Vec2, f32)>,
     touch_lock: bool,
     new_best: bool,
     trip_cooldown: f32,
@@ -370,7 +376,9 @@ impl Game {
             pan: Vec2::ZERO,
             mid_drag: None,
             pinch: None,
-            stroke_age: 0.0,
+            stroke_on: false,
+            pend: None,
+            tap: None,
             touch_lock: false,
             new_best: false,
             trip_cooldown: 0.0,
@@ -983,7 +991,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     }
 
     let blocked = g.sim.offer.is_some() || g.sim.game_over;
-    let over_ui = consumed || m.y < HUD_H || bar_rect().contains(m) || blocked;
+    let over_ui = consumed || m.y < HUD_H || bar_rect().contains(m) || (!g.undo.is_empty() && undo_rect().contains(m)) || blocked;
 
     // Mouse wheel zoom around the cursor
     let wheel = mouse_wheel().1;
@@ -1003,15 +1011,22 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
 
     // Two-finger pinch and pan
     // The view follows the fingers exactly: the ground under the two fingers stays under them.
-    let mut ts: Vec<Touch> = touches().into_iter().filter(|t| !matches!(t.phase, TouchPhase::Ended | TouchPhase::Cancelled)).collect();
+    let all = touches();
+    let any_touch = !all.is_empty();
+    let cancelled = all.iter().any(|t| t.phase == TouchPhase::Cancelled);
+    let mut ts: Vec<Touch> = all.into_iter().filter(|t| !matches!(t.phase, TouchPhase::Ended | TouchPhase::Cancelled)).collect();
+    // The two lowest ids make the pinch, so a third finger can't make it jump.
     ts.sort_by_key(|t| t.id);
-    g.stroke_age += dt;
+    if cancelled && !g.touch_lock {
+        // The browser took the touch away (a system gesture): drop the road it was drawing.
+        cancel_stroke(g);
+        g.touch_lock = true;
+    }
     if ts.len() >= 2 {
         if !g.touch_lock {
-            // The first finger of a pan landed a moment early and began a road: take it back.
-            if g.stroke_age < 0.5 {
-                cancel_stroke(g);
-            }
+            // Two fingers always move the camera. If the first finger landed a moment early
+            // and began a road, take that road back.
+            cancel_stroke(g);
             g.touch_lock = true;
         }
         let (a, b) = (ts[0].position, ts[1].position);
@@ -1034,6 +1049,9 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     }
     if g.touch_lock || blocked {
         g.last_tile = None;
+        g.stroke_on = false;
+        g.pend = None;
+        g.tap = None;
         end_stroke(g);
         return;
     }
@@ -1052,9 +1070,30 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     }
 
     let drawing = matches!(g.tool, Tool::Road | Tool::Erase);
+    // Touch positions are in device pixels, so the slop grows with the screen's pixel density.
+    let slop = TAP_SLOP_CSS * macroquad::miniquad::window::dpi_scale();
+    if pressed_l {
+        g.stroke_on = true;
+    }
     if pressed_l && !drawing {
-        if let Some(t) = tile {
+        if any_touch {
+            // On a phone a junction lands when the finger lifts after a tap, so a pan that
+            // starts on the map doesn't drop one.
+            g.tap = Some((mp, 0.0));
+        } else if let Some(t) = tile {
             tool_click(g, t);
+        }
+    }
+    if let Some((at, age)) = g.tap {
+        if (mp - at).length() > slop || age > 0.4 {
+            g.tap = None;
+        } else if !down_l {
+            g.tap = None;
+            if let Some(t) = scene.pick_on(&g.sim, at.x, at.y) {
+                tool_click(g, t);
+            }
+        } else {
+            g.tap = Some((at, age + dt));
         }
     }
 
@@ -1063,9 +1102,31 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
         g.last_tile = None;
         g.drag_erase = pressed_r || g.tool == Tool::Erase;
         g.stroke.clear();
-        g.stroke_age = 0.0;
+        // A finger has to move a little or rest a moment before it draws, so the first finger
+        // of a two-finger pan doesn't lay a road.
+        g.pend = if pressed_l && any_touch { Some((mp, 0.0)) } else { None };
     }
-    let dragging = (down_l && drawing) || down_r;
+    if !down_l {
+        g.stroke_on = false;
+    }
+    if let Some((at, age)) = g.pend {
+        // A quick tap that lifts before the wait is up still lays its one tile.
+        if down_l && (mp - at).length() < slop && age < 0.12 {
+            g.pend = Some((at, age + dt));
+            return;
+        }
+        g.pend = None;
+        // Start the road where the finger first landed.
+        g.last_tile = scene.pick_on(&g.sim, at.x, at.y);
+        if let Some(t0) = g.last_tile {
+            let r = if g.drag_erase { g.sim.erase_road(t0) } else { g.sim.place_road(t0) };
+            if r == EditResult::Ok {
+                g.stroke.push((t0, !g.drag_erase));
+                platform::play(if g.drag_erase { Sfx::Erase } else { Sfx::Road });
+            }
+        }
+    }
+    let dragging = (down_l && drawing && g.stroke_on) || down_r;
     if dragging && !over_ui {
         if let Some(t) = tile {
             let tiles = match g.last_tile {

@@ -4,7 +4,7 @@
 export const ERR = {
   OK: 0, BOUNDS: 1, NOT_ADJACENT: 2, BLOCKED: 3, NO_CONCRETE: 4, NO_BRIDGE: 5, NO_TUNNEL: 6,
   CROSSING: 7, EXISTS: 8, NO_UPGRADE: 9, BAD_PLACEMENT: 10, GAME_OVER: 11, NOTHING: 12,
-  TOO_SHORT: 13, NO_OFFER: 14,
+  TOO_SHORT: 13, NO_OFFER: 14, PERMANENT: 15,
 };
 
 // kind numbers used in upgrade counts and offers
@@ -44,8 +44,9 @@ export class Core {
     return JSON.parse(this.dec.decode(new Uint8Array(this.x.memory.buffer, this.x.ll_out_ptr(), len)));
   }
 
-  newGame(cityIndex, seed) {
-    this.x.ll_new(cityIndex >>> 0, seed >>> 0);
+  /** @param mode 0 classic, 1 expert, 2 creative */
+  newGame(cityIndex, seed, mode = 0) {
+    this.x.ll_new_mode(cityIndex >>> 0, seed >>> 0, mode >>> 0);
     this.city = this.cities[cityIndex];
   }
   step(dt) { this.x.ll_step(dt); }

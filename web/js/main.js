@@ -1,6 +1,7 @@
 import { Core, ERR, KIND } from './core.js';
+import { Sound } from './audio.js';
 import {
-  GROUP_COLORS, isUnlocked, lockText, packText, errorText, stepsBetween, clockText,
+  GROUP_COLORS, isUnlocked, lockText, packText, errorText, stepsBetween, clockText, MODES, dailyChallenge,
 } from './model.js';
 import { THEMES, buildTerrainLayer, drawScene } from './render.js';
 import { loadBest, saveBest, loadPref, savePref } from './storage.js';
@@ -15,6 +16,10 @@ const app = {
   screen: 'loading', // loading | menu | game
   cityIndex: 0,
   seed: 1,
+  mode: Number(loadPref('mode', 0)) || 0,
+  sound: new Sound(),
+  born: new Map(),
+  lastScore: 0,
   speed: 1,
   tool: 'road',
   themeName: 'light',
@@ -46,6 +51,7 @@ async function boot() {
     throw e;
   }
   buildTools();
+  buildModes();
   buildMenu();
   app.screen = 'menu';
   requestAnimationFrame(frame);
@@ -64,6 +70,23 @@ function setTheme(name) {
 }
 
 // ---------- menu ----------
+function buildModes() {
+  const box = $('mode-select');
+  box.textContent = '';
+  for (const m of MODES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.mode = String(m.id);
+    b.setAttribute('aria-checked', String(app.mode === m.id)); b.textContent = m.name;
+    b.addEventListener('click', () => {
+      app.mode = m.id; savePref('mode', m.id);
+      box.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      $('mode-blurb').textContent = m.blurb;
+    });
+    box.appendChild(b);
+  }
+  $('mode-blurb').textContent = MODES[app.mode].blurb;
+}
+
 function buildMenu() {
   const grid = $('city-grid');
   grid.textContent = '';
@@ -100,10 +123,13 @@ function showMenu() {
 }
 
 // ---------- game ----------
-function startGame(cityIndex, seed) {
+function startGame(cityIndex, seed, mode = app.mode) {
   app.cityIndex = cityIndex;
+  app.playMode = mode;
+  app.born = new Map();
+  app.lastScore = 0;
   app.seed = seed != null ? seed : (params.get('seed') ? Number(params.get('seed')) : (Date.now() & 0x7fffffff));
-  app.core.newGame(cityIndex, app.seed);
+  app.core.newGame(cityIndex, app.seed, mode);
   const c = app.core.cities[cityIndex];
   app.terrain = app.core.terrain();
   app.layer = null;
@@ -120,7 +146,7 @@ function startGame(cityIndex, seed) {
   $('tools').hidden = false;
   $('offer').hidden = true;
   $('over').hidden = true;
-  $('hud-city').textContent = c.name;
+  $('hud-city').textContent = mode ? `${c.name} · ${MODES[mode].name}` : c.name;
   if (!app.helpSeen) { $('help').hidden = false; app.helpSeen = true; savePref('helpSeen', true); setSpeed(0); }
   updateTools(true);
 }
@@ -141,11 +167,22 @@ function frame(ts) {
     if (!app.over && !blocked && SPEEDS[app.speed] > 0) app.core.step(dt * SPEEDS[app.speed]);
     app.snap = app.core.snapshot();
     if (app.snap.ver !== app.staticsVer) refreshStatics();
+    soundCues();
     syncUi();
     render(ts / 1000);
     acc += dt;
   }
   requestAnimationFrame(frame);
+}
+
+function soundCues() {
+  const s = app.snap;
+  if (s.score > app.lastScore) {
+    const groups = app.core.cities[app.cityIndex].groups;
+    app.sound.deliver((s.score + app.cityIndex) % groups);
+  }
+  app.lastScore = s.score;
+  if ((s.dests || []).some((d) => d[2] > 30)) app.sound.warn(s.t);
 }
 
 function refreshStatics() {
@@ -164,8 +201,8 @@ function render(t) {
   const view = viewTransform();
   drawScene(ctx, W, H, view, {
     w: app.statics.w, h: app.statics.h, terrain: app.terrain, statics: app.statics, snap: app.snap,
-    layer: app.layer, hover: app.hover,
-  }, THEMES[app.themeName], app.themeName, app.snap.t);
+    layer: app.layer, hover: app.hover, born: app.born,
+  }, THEMES[app.themeName], app.themeName, app.snap.t, performance.now() / 1000);
 }
 
 app.cellCenter = (c) => {
@@ -253,7 +290,7 @@ function updateTools(force) {
     if (Number.isNaN(kind)) { cnt.hidden = true; return; }
     const [owned, used] = up[kind];
     const free = owned - used;
-    const label = String(free);
+    const label = owned >= 1000 ? '∞' : String(free);
     if (cnt.textContent !== label || force) cnt.textContent = label;
     el.classList.toggle('empty', free <= 0);
     if (el.tagName === 'DIV') el.hidden = owned === 0;
@@ -299,7 +336,7 @@ function gameOver() {
   const trips = app.snap.score;
   const c = app.core.cities[app.cityIndex];
   const prev = app.best[c.id] || 0;
-  if (trips > prev) { app.best[c.id] = trips; saveBest(app.best); }
+  if (app.playMode === 0 && trips > prev) { app.best[c.id] = trips; saveBest(app.best); }
   $('over-text').textContent = `${c.name}: ${trips} trips delivered` + (trips > prev ? ' — a new best!' : ` (best ${prev}).`);
   $('offer').hidden = true;
   $('over').hidden = false;
@@ -460,7 +497,20 @@ $('btn-theme-menu').addEventListener('click', () => { setTheme(app.themeName ===
 $('btn-help').addEventListener('click', () => { $('help').hidden = false; });
 function closeHelp() { $('help').hidden = true; if (app.speed === 0 && !app.over) setSpeed(1); }
 $('btn-help-close').addEventListener('click', closeHelp);
-$('btn-retry').addEventListener('click', () => startGame(app.cityIndex));
+$('btn-retry').addEventListener('click', () => startGame(app.cityIndex, undefined, app.playMode));
+$('btn-daily').addEventListener('click', () => {
+  const d = dailyChallenge(new Date(), app.core.cities);
+  startGame(d.index, d.seed, 0);
+});
+$('btn-sound').addEventListener('click', () => {
+  app.sound.unlock();
+  app.sound.setMuted(!app.sound.muted);
+  $('btn-sound').classList.toggle('off', app.sound.muted);
+  savePref('muted', app.sound.muted);
+});
+app.sound.muted = Boolean(loadPref('muted', false));
+$('btn-sound').classList.toggle('off', app.sound.muted);
+document.addEventListener('pointerdown', () => app.sound.unlock(), { once: false });
 $('btn-over-menu').addEventListener('click', showMenu);
 $('unlock-all').addEventListener('change', (e) => { app.unlockAll = e.target.checked; savePref('unlockAll', app.unlockAll); buildMenu(); });
 

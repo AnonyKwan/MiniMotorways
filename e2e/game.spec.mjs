@@ -134,3 +134,20 @@ test('it fits a phone screen and takes touch', async ({ browser }) => {
   expect(errors).toEqual([]);
   await ctx.close();
 });
+
+test('pick Expert mode, or start today's map', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto('/index.html');
+  await page.locator('#mode-select button[data-mode="1"]').click();
+  await expect(page.locator('#mode-blurb')).toContainText('40 seconds');
+  await page.locator('#city-grid .card[data-city="london"]').click();
+  await page.locator('#btn-help-close').click();
+  await expect(page.locator('#hud-city')).toHaveText('London · Expert');
+  expect(await page.evaluate(() => window.__ll.statics.mode)).toBe(1);
+  await page.locator('#btn-menu').click();
+  await page.locator('#btn-daily').click();
+  await expect(page.locator('#hud')).toBeVisible();
+  expect(await page.evaluate(() => window.__ll.statics.mode)).toBe(0);
+  await page.screenshot({ path: 'shots/daily.png' });
+  expect(errors).toEqual([]);
+});

@@ -26,6 +26,7 @@
       <button id="speed-0" class="chip" aria-label="Pause" title="Pause (1 or Space)">⏸</button>
       <button id="speed-1" class="chip on" aria-label="Normal speed" title="Normal speed (2)">▶</button>
       <button id="speed-2" class="chip" aria-label="Fast forward" title="Fast forward (3)">⏩</button>
+      <button id="btn-sound" class="chip" aria-label="Sound on or off" title="Sound">♪</button>
       <button id="btn-theme" class="chip" aria-label="Switch light and dark" title="Light / dark">◐</button>
       <button id="btn-help" class="chip" aria-label="How to play" title="How to play">?</button>
     </div>
@@ -38,6 +39,11 @@
     <div class="menu-head">
       <h1>Little Lanes</h1>
       <p>Draw roads so every home reaches a place of its own colour. Keep the pins from piling up.</p>
+      <div class="menu-modes">
+        <div id="mode-select" class="seg" role="radiogroup" aria-label="Game mode"></div>
+        <p id="mode-blurb" class="blurb"></p>
+        <button id="btn-daily" class="chip">★ Today's map</button>
+      </div>
     </div>
     <div id="city-grid" class="grid"></div>
     <footer class="menu-foot">

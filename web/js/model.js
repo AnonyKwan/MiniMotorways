@@ -68,6 +68,7 @@ export function errorText(code) {
     case ERR.NO_UPGRADE: return 'None of those left';
     case ERR.BAD_PLACEMENT: return "Can't place that here";
     case ERR.TOO_SHORT: return 'A motorway needs at least 2 tiles';
+    case ERR.PERMANENT: return 'That road has set and can't be removed';
     default: return '';
   }
 }
@@ -104,4 +105,27 @@ export function pinSlots(count, perSide = 4) {
   const out = [];
   for (let i = 0; i < count; i++) out.push(i);
   return out.map((i) => ({ i, side: Math.floor(i / perSide) % 4, k: i % perSide }));
+}
+
+// ---- game modes ----
+export const MODES = [
+  { id: 0, name: 'Classic', blurb: 'The standard game. Roads can be changed any time.' },
+  { id: 1, name: 'Expert', blurb: 'Roads set after 40 seconds and then stay for good.' },
+  { id: 2, name: 'Creative', blurb: 'Every tool, no limits, no game over. Just build.' },
+];
+
+/** Stable 32-bit hash of a string (FNV-1a). */
+export function hashString(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+
+/** The same map and seed for everybody on a given UTC day. */
+export function dailyChallenge(date, cities) {
+  const d = typeof date === 'string' ? date : date.toISOString().slice(0, 10);
+  const pool = cities.map((c, i) => ({ c, i })).filter((x) => x.c.id !== 'osaka');
+  const h = hashString('little-lanes-' + d);
+  const pick = pool[h % pool.length];
+  return { date: d, index: pick.i, city: pick.c, seed: (hashString('seed-' + d) & 0x7fffffff) || 1 };
 }

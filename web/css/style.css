@@ -70,6 +70,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .card .lock { font-size: 0.78rem; color: var(--muted); }
 .menu-foot { max-width: 960px; margin: 22px auto 0; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 0.9rem; }
 
+.menu-modes { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.seg { display: inline-flex; background: var(--panel); border-radius: 999px; padding: 4px; box-shadow: var(--shadow); }
+.seg button { border: 0; background: transparent; padding: 8px 16px; border-radius: 999px; color: var(--muted); font-weight: 700; }
+.seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.blurb { margin: 0 !important; font-size: 0.9rem; }
+#btn-sound.off { opacity: 0.5; text-decoration: line-through; }
+
 /* overlays */
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20, 20, 24, 0.35); padding: 16px; }
 .sheet { background: var(--panel); border-radius: 24px; padding: 24px; max-width: 560px; width: 100%; box-shadow: var(--shadow); }

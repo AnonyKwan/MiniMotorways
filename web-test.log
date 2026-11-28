@@ -1,94 +1,94 @@
-commit: a546ca034d16196800dd4963f3f5be50a46980d4  ref: rebuild  run: 46117438544
+commit: 8b3d04f4378590d12467b3b30180106b7da058ce  ref: rebuild  run: 46117566552
 -----
 TAP version 13
 # Subtest: catalog lists the 27 maps and the hidden one
 ok 1 - catalog lists the 27 maps and the hidden one
   ---
-  duration_ms: 111.539015
+  duration_ms: 28.812826
   type: 'test'
   ...
 # Subtest: a new game starts empty and clean
 ok 2 - a new game starts empty and clean
   ---
-  duration_ms: 5.049921
+  duration_ms: 4.507152
   type: 'test'
   ...
 # Subtest: same seed gives the same game, different seed a different one
 ok 3 - same seed gives the same game, different seed a different one
   ---
-  duration_ms: 15.511546
+  duration_ms: 10.165487
   type: 'test'
   ...
 # Subtest: drawing a road spends concrete and erasing gives it back
 ok 4 - drawing a road spends concrete and erasing gives it back
   ---
-  duration_ms: 15.386774
+  duration_ms: 13.958557
   type: 'test'
   ...
 # Subtest: bad requests come back as codes, not crashes
 ok 5 - bad requests come back as codes, not crashes
   ---
-  duration_ms: 3.954918
+  duration_ms: 3.918661
   type: 'test'
   ...
 # Subtest: every map plays for two minutes of game time without trapping
 ok 6 - every map plays for two minutes of game time without trapping
   ---
-  duration_ms: 21.459636
+  duration_ms: 33.906806
   type: 'test'
   ...
 # Subtest: the first weekly offer opens after 140 seconds and can be taken
 ok 7 - the first weekly offer opens after 140 seconds and can be taken
   ---
-  duration_ms: 5.480648
+  duration_ms: 3.246261
   type: 'test'
   ...
 # Subtest: five maps are open from the start
 ok 8 - five maps are open from the start
   ---
-  duration_ms: 0.862255
+  duration_ms: 0.798368
   type: 'test'
   ...
 # Subtest: the unlock chain follows the design
 ok 9 - the unlock chain follows the design
   ---
-  duration_ms: 1.010718
+  duration_ms: 0.844868
   type: 'test'
   ...
 # Subtest: unlock all opens everything
 ok 10 - unlock all opens everything
   ---
-  duration_ms: 0.078348
+  duration_ms: 0.090965
   type: 'test'
   ...
 # Subtest: lock text names the requirement
 ok 11 - lock text names the requirement
   ---
-  duration_ms: 0.201152
+  duration_ms: 0.225896
   type: 'test'
   ...
 # Subtest: dragging across cells moves one step at a time and ends on target
 ok 12 - dragging across cells moves one step at a time and ends on target
   ---
-  duration_ms: 0.591237
+  duration_ms: 0.643838
   type: 'test'
   ...
 # Subtest: error codes have friendly text
 ok 13 - error codes have friendly text
   ---
-  duration_ms: 0.103285
+  duration_ms: 0.131475
   type: 'test'
   ...
 # Subtest: clock and pack text
 ok 14 - clock and pack text
   ---
-  duration_ms: 0.162775
+  duration_ms: 0.230823
   type: 'test'
   ...
 # Subtest: every colour has its own shape, in both themes
 ok 15 - every colour has its own shape, in both themes
   ---
-  duration_ms: 0.094872
+  duration_ms: 0.096183
   type: 'test'
   ...
 1..15
@@ -99,4 +99,4 @@ ok 15 - every colour has its own shape, in both themes
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 247.107121
+# duration_ms 145.589369

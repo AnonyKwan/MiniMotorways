@@ -8,6 +8,7 @@ import { loadBest, saveBest, loadPref, savePref } from './storage.js';
 import { initFeatures } from './features.js';
 import { initOptions } from './options.js';
 import { newSave, perform, replay } from './savegame.js';
+import { PadReader, firstPad, clampPoint, CURSOR_SPEEDS } from './gamepad.js';
 import { Renderer3D, webglAvailable } from './render3d.js';
 
 const $ = (id) => document.getElementById(id);
@@ -236,6 +237,7 @@ function frame(ts) {
   const dt = Math.min(0.1, Math.max(0, (ts - last) / 1000));
   last = ts;
   if (app.screen === 'game') {
+    pollPad(dt);
     const blocked = !$('help').hidden || app.paused;
     if (!app.over && !blocked && SPEEDS[app.speed] > 0) app.core.step(dt * SPEEDS[app.speed]);
     app.snap = app.core.snapshot();
@@ -296,6 +298,7 @@ function render(t) {
     app.r3.setView(box, app.view.zoom, [app.view.panX, app.view.panY]);
     app.r3.draw({ statics: app.statics, snap: app.snap, born: app.born }, performance.now() / 1000);
     drawOverlay3d();
+    drawPadCursor();
     return;
   }
   if (!app.layer) {
@@ -309,6 +312,7 @@ function render(t) {
     w: app.statics.w, h: app.statics.h, terrain: app.terrain, statics: app.statics, snap: app.snap,
     layer: app.layer, hover: app.hover, born: app.born, region: app.photo || app.playMode === 3 ? null : app.snap.region,
   }, THEMES[app.themeName], app.themeName, app.snap.t, performance.now() / 1000);
+  drawPadCursor();
 }
 
 app.cellCenter = (c) => {
@@ -488,7 +492,7 @@ function currentMode(e) {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointerdown', (e) => {
   if (app.screen !== 'game' || app.over) return;
-  canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* a pointer made up for a game controller */ }
   const [px, py] = local(e);
   pointers.set(e.pointerId, { x: px, y: py });
   if (pointers.size >= 2 || e.button === 1) {
@@ -652,6 +656,60 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { last = performance.now(); });
+
+// ---------- game controller ----------
+const padReader = new PadReader();
+let padHeld = null;
+const TOOL_ORDER = ['road', 'erase', 'light', 'round', 'motorway'];
+
+function firePointer(type, x, y, button) {
+  const r = canvas.getBoundingClientRect();
+  canvas.dispatchEvent(new PointerEvent(type, { clientX: r.left + x, clientY: r.top + y, button, buttons: type === 'pointerup' ? 0 : (button === 2 ? 2 : 1), pointerId: 99, pointerType: 'mouse', bubbles: true }));
+}
+
+function pollPad(dt) {
+  const pad = firstPad();
+  if (!pad) { app.padActive = false; return; }
+  const r = padReader.read(pad, dt, CURSOR_SPEEDS[Number(app.options && app.options.cursorSpeed) || 2]);
+  if (r.cursor[0] || r.cursor[1] || r.pressed.size) app.padActive = true;
+  if (!app.padActive || app.over) return;
+  if (!app.cursor) app.cursor = [app.W / 2, app.H / 2];
+  if (!$('offer').hidden) {
+    if (r.pressed.has('draw')) chooseOffer(0);
+    if (r.pressed.has('offerSecond')) chooseOffer(1);
+    return;
+  }
+  if (app.paused || !$('help').hidden) { if (r.pressed.has('pause') && options) options.setPaused(false); return; }
+  if (r.pressed.has('pause') && options) { options.setPaused(true); return; }
+  if (r.cursor[0] || r.cursor[1]) {
+    app.cursor = clampPoint(app.cursor[0] + r.cursor[0], app.cursor[1] + r.cursor[1], app.W, app.H);
+    firePointer('pointermove', app.cursor[0], app.cursor[1], padHeld ? padHeld.button : 0);
+  }
+  if (r.pressed.has('draw') && !padHeld) { padHeld = { button: 0 }; firePointer('pointerdown', app.cursor[0], app.cursor[1], 0); }
+  if (r.pressed.has('erase') && !padHeld) { padHeld = { button: 2 }; firePointer('pointerdown', app.cursor[0], app.cursor[1], 2); }
+  if (padHeld && ((padHeld.button === 0 && r.released.has('draw')) || (padHeld.button === 2 && r.released.has('erase')))) {
+    firePointer('pointerup', app.cursor[0], app.cursor[1], padHeld.button);
+    padHeld = null;
+  }
+  if (r.pressed.has('undo') && features) features.undo();
+  if (r.pressed.has('slower')) setSpeed(Math.max(0, app.speed - 1));
+  if (r.pressed.has('faster')) setSpeed(Math.min(2, app.speed + 1));
+  if (r.pressed.has('toolPrev') || r.pressed.has('toolNext')) {
+    const i = TOOL_ORDER.indexOf(app.tool);
+    setTool(TOOL_ORDER[(i + (r.pressed.has('toolNext') ? 1 : TOOL_ORDER.length - 1)) % TOOL_ORDER.length]);
+  }
+  if (r.zoom) app.view.zoom = clampZoom(app.view.zoom * Math.exp(r.zoom * dt * 1.2));
+  if (r.pan[0] || r.pan[1]) { app.view.panX -= r.pan[0]; app.view.panY -= r.pan[1]; }
+}
+
+function drawPadCursor() {
+  if (!app.padActive || !app.cursor || app.screen !== 'game') return;
+  ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
+  const [x, y] = app.cursor;
+  ctx.lineWidth = 3; ctx.strokeStyle = THEMES[app.themeName].ink; ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 20, y); ctx.lineTo(x - 8, y); ctx.moveTo(x + 8, y); ctx.lineTo(x + 20, y); ctx.moveTo(x, y - 20); ctx.lineTo(x, y - 8); ctx.moveTo(x, y + 8); ctx.lineTo(x, y + 20); ctx.stroke();
+}
 
 app.snapshotCanvas = () => {
   if (!app.use3d) return canvas;

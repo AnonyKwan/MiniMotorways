@@ -320,9 +320,22 @@ export class Renderer3D {
       const wet = kindAt(a) === 1 || kindAt(b) === 1, hill = kindAt(a) === 2 || kindAt(b) === 2;
       const y0 = wet ? 0.28 : 0;
       nodes.add(a); nodes.add(b);
+      const half = (kindAt(a) === 1) !== (kindAt(b) === 1);
       if (wet) {
-        s.add('box', mx, y0 - 0.04, mz, len + 0.04, 0.1, 0.62, rot, p.deck);
-        s.add('box', mx, y0 + 0.06, mz, len + 0.02, 0.04, 0.46, rot, p.asphalt);
+        if (half) {
+          const landIsA = kindAt(a) !== 1;
+          const [lx, lz] = landIsA ? [ax, az] : [bx, bz];
+          const [wx2, wz2] = landIsA ? [bx, bz] : [ax, az];
+          for (const [t0, t1, yy] of [[0, 0.5, 0.12], [0.5, 1, y0]]) {
+            const m = (t0 + t1) / 2;
+            const px = lx + (wx2 - lx) * m, pz = lz + (wz2 - lz) * m;
+            s.add('box', px, yy - 0.04, pz, len * (t1 - t0) + 0.02, 0.1, 0.62, rot, p.deck);
+            s.add('box', px, yy + 0.06, pz, len * (t1 - t0) + 0.02, 0.04, 0.46, rot, p.asphalt);
+          }
+        } else {
+          s.add('box', mx, y0 - 0.04, mz, len + 0.04, 0.1, 0.62, rot, p.deck);
+          s.add('box', mx, y0 + 0.06, mz, len + 0.02, 0.04, 0.46, rot, p.asphalt);
+        }
         if (kindAt(a) === 1 && kindAt(b) === 1 || len > 1.2) {
           for (const k of [-0.5, 0.5]) {
             const rx = mx + Math.sin(rot) * 0.3 * k * 2, rz = mz + Math.cos(rot) * 0.3 * k * 2;
@@ -535,6 +548,11 @@ export class Renderer3D {
     const d = this.dyn, sh = (this.dynShadow = this.dynShadow || new Batch());
     d.clear(); sh.clear();
     const xz = (c) => [(c % w) + 0.5, Math.floor(c / w) + 0.5];
+    const night = this.themeName === 'dark';
+    const glass = night ? [1, 0.86, 0.45] : [0.36, 0.52, 0.66];
+    const lamp = night ? [1, 0.95, 0.7] : [1, 0.97, 0.8];
+    // a point on a building, given in the building's own (turned) frame
+    const at = (x, z, lx, lz, rot) => [x + Math.cos(rot) * lx + Math.sin(rot) * lz, z - Math.sin(rot) * lx + Math.cos(rot) * lz];
     const pop = (key) => {
       if (!born || this.reduceMotion) return 1;
       if (!born.has(key)) born.set(key, now);
@@ -562,7 +580,8 @@ export class Renderer3D {
       const rot = (cellHash(c % w, Math.floor(c / w), 3) < 0.5 ? 0 : Math.PI / 2);
       d.add('box', x, 0, z, 0.66 * k, 0.4 * k, 0.6 * k, rot, col);
       roof(g, x, 0.4 * k, z, 0.72 * k, col, rot);
-      d.add('box', x + 0.03, 0, z + 0.31 * k, 0.14 * k, 0.2 * k, 0.03, 0, shade(col, 0.55));
+      for (const lx of [-0.17, 0.17]) { const [wx, wz] = at(x, z, lx * k, 0.31 * k, rot); d.add('box', wx, 0.17 * k, wz, 0.12 * k, 0.1 * k, 0.03, rot, glass); }
+      { const [dx2, dz2] = at(x, z, 0, 0.31 * k, rot); d.add('box', dx2, 0, dz2, 0.1 * k, 0.16 * k, 0.03, rot, shade(col, 0.5)); }
       sh.add('box', x + 0.14, 0.004, z + 0.18, 0.7 * k, 0.001, 0.62 * k, 0, p.shadow, 0.2);
     });
 
@@ -579,6 +598,7 @@ export class Renderer3D {
         roof(g, cx, 0.04 + 0.8 * k, cz - 0.15, bw * 1.05, col, 0);
       }
       d.add('box', cx, 0.04, cz + 0.52 * k, bw * 0.8, 0.14 * k, 0.1, 0, [1, 1, 1], 1); // awning
+      for (let wi = -1; wi <= 1; wi++) d.add('box', cx + wi * 0.36 * k, 0.34 * k, cz - 0.15 + bw / 2 + 0.01, 0.22 * k, 0.2 * k, 0.03, 0, glass);
       if (kind === 1) { d.add('box', cx, 0.04, cz + 0.72, 1.4, 0.2, 0.18, 0, p.ink); d.add('cyl', cx - 0.45, 0.04, cz + 0.72, 0.1, 0.2, 0.1, 0, p.white); d.add('cyl', cx + 0.45, 0.04, cz + 0.72, 0.1, 0.2, 0.1, 0, p.white); }
       if (kind === 2) { d.add('box', cx, 0.04, cz + 0.72, 1.5, 0.12, 0.2, 0, p.deck); d.add('cyl', cx + 0.8, 0.04, cz + 0.7, 0.1, 0.3, 0.1, 0, p.ink); }
       sh.add('box', cx + 0.22, 0.004, cz + 0.1, 2.0, 0.001, 1.95, 0, p.shadow, 0.2);
@@ -629,6 +649,7 @@ export class Renderer3D {
       d.add('box', x, y + 0.04, z, 0.42, 0.13, 0.24, rot, col);
       d.add('box', x - Math.cos(rot) * 0.02, y + 0.17, z + Math.sin(rot) * 0.02, 0.22, 0.1, 0.2, rot, shade(col, 1.15));
       d.add('box', x, y + 0.2, z, 0.12, 0.05, 0.18, rot, [0.15, 0.2, 0.28]);
+      for (const lz of [-0.08, 0.08]) { const [hx, hz] = at(x, z, 0.215, lz, rot); d.add('box', hx, y + 0.07, hz, 0.03, 0.04, 0.05, rot, lamp); }
       sh.add('box', x + 0.05, 0.005, z + 0.07, 0.44, 0.001, 0.26, rot, p.shadow, 0.25);
     }
   }

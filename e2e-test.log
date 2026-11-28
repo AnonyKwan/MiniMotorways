@@ -1,160 +1,259 @@
-commit: 0b8fa10c9b36f91225bd03578515af1ba0537474  ref: main  run: 46126107027
+commit: 8060aa4c98d9eb78ba3eaae88e190d8e1008de90  ref: options  run: 46126970440
 -----
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:30] "GET /index.html HTTP/1.1" 200 -
 
-Running 10 tests using 2 workers
+Running 12 tests using 2 workers
 
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /index.html HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /index.html HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:30] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  2 game.spec.mjs:13:1 › the map list shows five open maps and the rest locked (367ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /index.html HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  3 game.spec.mjs:25:1 › unlocking every map opens them all (224ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /index.html?city=beijing&seed=4 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  1 features.spec.mjs:10:1 › achievements, challenges and the tutorial are on the menu (2.8s)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:33] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  5 features.spec.mjs:32:1 › undo, photo mode and carrying on as Endless (5.4s)
-  ✓  4 game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road (8.4s)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /index.html?city=london&seed=2 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:39] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  6 game.spec.mjs:94:1 › the weekly upgrade card appears and can be picked (1.7s)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:41] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  7 game.spec.mjs:107:1 › an unattended town ends in the game over screen (1.6s)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:42] "GET /index.html?theme=light HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:42] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:42] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  8 game.spec.mjs:117:1 › light and dark themes both work (267ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /index.html?city=losangeles&seed=3 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:43] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  9 game.spec.mjs:125:1 › it fits a phone screen and takes touch (1.3s)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /index.html HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/features.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/audio.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/render3d.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/challenges.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/achievements.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /js/achievements_data.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 08:31:44] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  10 game.spec.mjs:141:1 › pick Expert mode, or start today's map (1.5s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  2 game.spec.mjs:13:1 › the map list shows five open maps and the rest locked (496ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:31] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  3 game.spec.mjs:25:1 › unlocking every map opens them all (334ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /index.html?city=beijing&seed=4 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:32] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  1 features.spec.mjs:10:1 › achievements, challenges and the tutorial are on the menu (4.8s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:36] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  5 features.spec.mjs:32:1 › undo, photo mode and carrying on as Endless (10.1s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /index.html?city=beijing&seed=11 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:46] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  4 game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road (16.5s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /index.html?city=london&seed=2 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:48] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  7 game.spec.mjs:94:1 › the weekly upgrade card appears and can be picked (5.0s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:53] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  8 game.spec.mjs:107:1 › an unattended town ends in the game over screen (3.9s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /index.html?theme=light HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:57] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  9 game.spec.mjs:117:1 › light and dark themes both work (642ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /index.html?city=losangeles&seed=3 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:42:58] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  10 game.spec.mjs:125:1 › it fits a phone screen and takes touch (3.2s)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:43:01] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  11 game.spec.mjs:141:1 › pick Expert mode, or start today's map (4.1s)
+  ✘  6 options.spec.mjs:10:1 › pause, options and the saved game (1.5m)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/audio.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/features.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/options.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/savegame.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/render3d.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/achievements.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/challenges.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /js/achievements_data.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 08:44:17] "GET /index.html HTTP/1.1" 304 -
+  ✓  12 options.spec.mjs:48:1 › options survive a reload (501ms)
 
-  Slow test file: game.spec.mjs (15.4s)
+
+  1) options.spec.mjs:10:1 › pause, options and the saved game ─────────────────────────────────────
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.check: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('#options input[data-opt="colorblind"]')[22m
+    [2m    - locator resolved to <input type="checkbox" data-opt="colorblind"/>[22m
+    [2m  - attempting click action[22m
+    [2m    2 × waiting for element to be visible, enabled and stable[22m
+    [2m      - element is visible, enabled and stable[22m
+    [2m      - scrolling into view if needed[22m
+    [2m      - done scrolling[22m
+    [2m      - <section id="pause" class="overlay">…</section> intercepts pointer events[22m
+    [2m    - retrying click action[22m
+    [2m    - waiting 20ms[22m
+    [2m    2 × waiting for element to be visible, enabled and stable[22m
+    [2m      - element is visible, enabled and stable[22m
+    [2m      - scrolling into view if needed[22m
+    [2m      - done scrolling[22m
+    [2m      - <section id="pause" class="overlay">…</section> intercepts pointer events[22m
+    [2m    - retrying click action[22m
+    [2m      - waiting 100ms[22m
+    [2m    92 × waiting for element to be visible, enabled and stable[22m
+    [2m       - element is visible, enabled and stable[22m
+    [2m       - scrolling into view if needed[22m
+    [2m       - done scrolling[22m
+    [2m       - <section id="pause" class="overlay">…</section> intercepts pointer events[22m
+    [2m     - retrying click action[22m
+    [2m       - waiting 500ms[22m
+
+
+      22 |   await page.locator('#btn-pause-options').click();
+      23 |   await expect(page.locator('#options')).toBeVisible();
+    > 24 |   await page.locator('#options input[data-opt="colorblind"]').check();
+         |                                                               ^
+      25 |   await page.locator('#options select[data-opt="quality"]').selectOption('0.75');
+      26 |   await page.screenshot({ path: 'shots/options.png' });
+      27 |   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('littlelanes.options')));
+        at /home/runner/work/LittleLanes/LittleLanes/e2e/options.spec.mjs:24:63
+
+  Slow test file: game.spec.mjs (34.1s)
   Consider splitting slow test files to speed up parallel execution
-  10 passed (16.2s)
+  1 failed
+    options.spec.mjs:10:1 › pause, options and the saved game ──────────────────────────────────────
+  11 passed (1.8m)

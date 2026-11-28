@@ -38,6 +38,7 @@ test('start a map, let the town grow, draw and erase a road', async ({ page }) =
 
   // fast-forward the simulation so the town has some buildings
   await page.evaluate(() => { for (let i = 0; i < 400; i++) window.__ll.core.step(0.1); });
+  await page.waitForFunction(() => window.__ll.camSettled());
   await page.waitForTimeout(300);
   const counts = await page.evaluate(() => ({ houses: window.__ll.statics.houses.length, dests: window.__ll.statics.dests.length }));
   expect(counts.dests).toBeGreaterThanOrEqual(1);
@@ -60,7 +61,8 @@ test('start a map, let the town grow, draw and erase a road', async ({ page }) =
     const taken = new Set();
     for (const [c] of a.statics.houses) taken.add(c);
     for (const [c] of a.statics.dests) for (const d of [0, 1, w, w + 1]) taken.add(c + d);
-    for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 4; x++) {
+    const [rx0, ry0, rx1, ry1] = a.snap.region;
+    for (let y = Math.max(2, ry0 + 1); y < Math.min(h - 2, ry1 - 1); y++) for (let x = Math.max(2, rx0 + 1); x < Math.min(w - 4, rx1 - 3); x++) {
       const c = y * w + x;
       if ([c, c + 1, c + 2].every((k) => (a.terrain[k] & 3) === 0 && !taken.has(k))) return [c, c + 2];
     }

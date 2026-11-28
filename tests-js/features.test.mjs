@@ -58,10 +58,10 @@ test('achievement table is complete', () => {
 test('score achievements unlock from the best trips on a map', () => {
   let p = emptyProgress();
   const stats = { placed: [0, 0, 0, 0, 0, 0], deleted: 0, trees: 0, bigPins: 0, milestones: 0 };
-  p = recordGame(p, { cityId: 'beijing', mode: 0, score: 120, stats, concrete: 40 });
+  p = recordGame(p, { cityId: 'beijing', mode: 0, score: 250, stats, concrete: 40 });
   const ids = sweep(p, null).map((d) => d[0]);
-  assert.ok(ids.some((i) => /Beijing_Score100$/.test(i)), 'Beijing 100 earned');
-  assert.ok(!ids.some((i) => /Beijing_Score200$/.test(i)));
+  assert.ok(ids.some((i) => /Beijing_Score200$/.test(i)), 'Beijing 200 earned');
+  assert.ok(!ids.some((i) => /Beijing_Score1000$/.test(i)));
   assert.equal(sweep(p, null).length, 0, 'earned once only');
   const expertOnly = ACHIEVEMENTS.find((d) => d[2] === 'Score' && d[5] === 1 && d[1] === 'beijing');
   if (expertOnly) assert.equal(isEarned(expertOnly, p, null), false, 'classic trips do not count for Expert-only goals');

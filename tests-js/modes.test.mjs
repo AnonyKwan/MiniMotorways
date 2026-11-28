@@ -9,8 +9,8 @@ const wasmPath = new URL('../dist/little_lanes_core.wasm', import.meta.url);
 const opts = { skip: existsSync(wasmPath) ? false : 'wasm not built' };
 const CITIES = [{ id: 'a' }, { id: 'b' }, { id: 'osaka' }, { id: 'c' }, { id: 'd' }];
 
-test('three modes are offered', () => {
-  assert.deepEqual(MODES.map((m) => m.name), ['Classic', 'Expert', 'Creative']);
+test('four modes are offered', () => {
+  assert.deepEqual(MODES.map((m) => m.name), ['Classic', 'Expert', 'Creative', 'Endless']);
 });
 
 test("today's map is the same for everyone and never the hidden one", () => {

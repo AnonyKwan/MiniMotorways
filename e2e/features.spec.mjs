@@ -20,6 +20,7 @@ test('achievements, challenges and the tutorial are on the menu', async ({ page 
   await page.locator('#chal .ch button[data-challenge^="daily:"]').click();
   await expect(page.locator('#hud')).toBeVisible();
   expect(await page.evaluate(() => window.__ll.challenge && window.__ll.challenge.kind)).toBe('daily');
+  await page.locator('#btn-help-close').click();
   await page.locator('#btn-menu').click();
   await page.locator('#btn-tutorial').click();
   await expect(page.locator('.coach')).toBeVisible();

@@ -238,6 +238,9 @@ function regionBox() {
   else for (let i = 0; i < 4; i++) app.cam[i] += (r[i] - app.cam[i]) * 0.04;
   return app.cam;
 }
+/** True once the camera has finished easing toward the open part of the map. */
+app.camSettled = () => !app.cam || !app.snap || !app.snap.region || app.cam.every((v, i) => Math.abs(v - app.snap.region[i]) < 0.05);
+
 function viewTransform() {
   const [x0, y0, x1, y1] = app.cam || [0, 0, app.statics.w, app.statics.h];
   const rw = Math.max(4, x1 - x0), rh = Math.max(4, y1 - y0);

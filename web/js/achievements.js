@@ -8,6 +8,7 @@ export function emptyProgress() {
     best: {}, // cityId -> { c: classic best trips, e: expert best trips }
     placed: [0, 0, 0, 0, 0, 0], deleted: 0, trees: 0, bigPins: 0,
     concrete: 0, endlessMilestones: 0, daily: 0, weekly: 0, tutorial: false, allTools: false,
+    cc: {}, // best score in each map's own challenges
     unlocked: {},
   };
 }
@@ -15,14 +16,15 @@ export function emptyProgress() {
 export function normalise(p) {
   const e = emptyProgress();
   if (!p || typeof p !== 'object') return e;
-  return { ...e, ...p, best: { ...(p.best || {}) }, placed: [...(p.placed || e.placed)], unlocked: { ...(p.unlocked || {}) } };
+  return { ...e, ...p, best: { ...(p.best || {}) }, cc: { ...(p.cc || {}) }, placed: [...(p.placed || e.placed)], unlocked: { ...(p.unlocked || {}) } };
 }
 
 /** Adds the numbers of one finished (or abandoned) game to the lifetime record. */
 export function recordGame(progress, game) {
   const p = normalise(progress);
   const { cityId, mode, score, stats } = game;
-  if (mode === 0 || mode === 1) {
+  if (game.challengeKind === 'city') p.cc[cityId] = Math.max(p.cc[cityId] || 0, score);
+  if ((mode === 0 || mode === 1) && !game.challengeKind) {
     const b = p.best[cityId] || { c: 0, e: 0 };
     if (mode === 0) b.c = Math.max(b.c, score);
     else b.e = Math.max(b.e, score);
@@ -60,9 +62,10 @@ export function isEarned(def, p, live) {
   const t = totals(p, live);
   switch (type) {
     case 'Score': {
+      if (def[0].includes('_Challenge_')) return ((p.cc || {})[city] || 0) >= value;
       const b = p.best[city] || { c: 0, e: 0 };
       let c = b.c, e = b.e;
-      if (live && live.cityId === city) { if (live.mode === 0) c = Math.max(c, live.score); if (live.mode === 1) e = Math.max(e, live.score); }
+      if (live && live.cityId === city && !live.challengeKind) { if (live.mode === 0) c = Math.max(c, live.score); if (live.mode === 1) e = Math.max(e, live.score); }
       return (only === 1 ? e : Math.max(c, e)) >= value;
     }
     case 'UpgradesUsed': return kind === 0 ? t.concrete >= value : t.placed[kind] >= value;

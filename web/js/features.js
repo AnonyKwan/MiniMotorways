@@ -225,7 +225,7 @@ export function initFeatures(app, api) {
     app.finished = true;
     const s = app.snap;
     const stats = { placed: [0, ...s.stats.slice(4, 9)], deleted: s.stats[2], trees: s.stats[1], bigPins: s.stats[3], milestones: s.stats[0] };
-    app.progress = recordGame(app.progress, { cityId: app.core.cities[app.cityIndex].id, mode: app.playMode, score: s.score, stats, concrete: concreteSpent });
+    app.progress = recordGame(app.progress, { cityId: app.core.cities[app.cityIndex].id, mode: app.playMode, score: s.score, stats, concrete: concreteSpent, challengeKind: app.challenge ? app.challenge.kind : null });
     const ch = app.challenge;
     if (ch) {
       app.challengeBest[ch.key] = Math.max(app.challengeBest[ch.key] || 0, s.score);
@@ -264,7 +264,7 @@ export function initFeatures(app, api) {
       if (s.t - lastSweep > 1 && !app.over) {
         lastSweep = s.t;
         const live = {
-          cityId: app.core.cities[app.cityIndex].id, mode: app.playMode, score: s.score, concrete: concreteSpent,
+          cityId: app.core.cities[app.cityIndex].id, mode: app.playMode, score: s.score, concrete: concreteSpent, challengeKind: app.challenge ? app.challenge.kind : null,
           stats: { placed: [0, ...s.stats.slice(4, 9)], deleted: s.stats[2], trees: s.stats[1], bigPins: s.stats[3], milestones: s.stats[0] },
         };
         celebrate(sweep(app.progress, live));

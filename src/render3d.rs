@@ -1028,70 +1028,60 @@ fn draw_shop_local(mb: &mut Mb, d: &Dest, col: Color, lift: f32) {
     let (lx0, lx1) = (o.0 as f32 + 0.04, (o.0 + w) as f32 - 0.04);
     // The lot runs right up to the shop front, like a house's driveway.
     let shop_front = front - 0.22;
-    // The car park is closed in by a low hedge on its front and sides; only the driveways
-    // break through it, so it is clear where a road can join.
+    // The car park is closed in by a low hedge on its front and sides. Each entrance is a
+    // corner of the car park with the hedge open on its front and its outer side, so a road
+    // can join it head-on or from the side.
     let lot_end = front + 0.74;
     mb.rect_y(lx0, shop_front - 0.02, lx1, lot_end + 0.04, y + 0.006, CURB);
     mb.rect_y(lx0 + 0.06, shop_front, lx1 - 0.06, lot_end, y + 0.012, ASPHALT);
     let hedge = Color::new(0.30, 0.55, 0.33, 1.0);
     let (hy, hh) = (y + 0.0, 0.1);
-    for (a, b) in [(lx0 - 0.02, lx0 + 0.08), (lx1 - 0.08, lx1 + 0.02)] {
-        mb.abox(vec3(a, hy, front - 0.1), vec3(b, hy + hh, front + 0.96), hedge);
+    let left_open = door_us.contains(&0);
+    let right_open = door_us.contains(&(w - 1));
+    for (a, b, open) in [(lx0 - 0.02, lx0 + 0.08, left_open), (lx1 - 0.08, lx1 + 0.02, right_open)] {
+        let end = if open { front + 0.02 } else { front + 0.96 };
+        mb.abox(vec3(a, hy, front - 0.1), vec3(b, hy + hh, end), hedge);
     }
     let mut x = lx0 - 0.02;
-    let mut gaps: Vec<f32> = door_us.iter().map(|u| *u as f32 + 0.5).collect();
-    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    for g in gaps.iter().chain(std::iter::once(&f32::MAX)) {
-        let end = (g - 0.4).min(lx1 + 0.02);
+    let mut gaps: Vec<(f32, f32)> = door_us.iter().map(|u| (*u as f32 + 0.02, *u as f32 + 0.98)).collect();
+    gaps.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    for g in gaps.iter().chain(std::iter::once(&(f32::MAX, f32::MAX))) {
+        let end = g.0.min(lx1 + 0.02);
         if end > x {
             mb.abox(vec3(x, hy, front + 0.82), vec3(end, hy + hh, front + 0.96), hedge);
         }
-        x = g + 0.4;
+        x = g.1;
     }
-    // Driveways: road-width asphalt with kerbs from the car park to the tile edge, where the
-    // road in front joins, and a painted arrow pointing in.
-    let (cw, aw) = (0.38, 0.31);
+    // Entrances: an arrow painted on the corner tile pointing in along the car park.
     for u in &door_us {
-        let dx = *u as f32 + 0.5;
-        // The shop draws its own driveway stub out to the middle of the driveway tile, so it
-        // always shows even before any road joins it; the road layer adds the side arms.
-        mb.rect_y(dx - cw, lot_end - 0.04, dx + cw, front + 1.5, y + 0.007, CURB);
-        mb.rect_y(dx - aw, lot_end - 0.02, dx + aw, front + 1.5, y + 0.013, ASPHALT);
-        mb.disk(vec3(dx, y + 0.007, front + 1.5), cw, 16, CURB);
-        mb.disk(vec3(dx, y + 0.013, front + 1.5), aw, 16, ASPHALT);
-        let tip = vec3(dx, y + 0.018, front + 0.58);
-        mb.flat(&[tip, vec3(dx + 0.12, y + 0.018, front + 0.74), vec3(dx - 0.12, y + 0.018, front + 0.74)], MARKING);
-        mb.rect_y(dx - 0.035, front + 0.72, dx + 0.035, front + 0.9, y + 0.018, MARKING);
+        let (cx, cz) = (*u as f32 + 0.5, front + 0.62);
+        let inward = if *u == 0 { 1.0 } else { -1.0 };
+        let tip = vec3(cx + 0.2 * inward, y + 0.018, cz);
+        mb.flat(&[tip, vec3(cx + 0.05 * inward, y + 0.018, cz - 0.1), vec3(cx + 0.05 * inward, y + 0.018, cz + 0.1)], MARKING);
+        mb.rect_y(cx - 0.16, cz - 0.03, cx + 0.06, cz + 0.03, y + 0.018, MARKING);
     }
-    for k in 0..w {
-        let tx = (o.0 + k) as f32;
-        if door_us.contains(&k) {
-            continue;
-        }
-        // Three bays per car-park tile, nose-in toward the shop.
-        for b in 0..=3 {
-            let bx = tx + 0.08 + b as f32 * 0.28;
-            mb.rect_y(bx - 0.012, front + 0.04, bx + 0.012, front + 0.42, y + 0.016, MARKING);
-        }
-        // A couple of parked cars in the shop's colour, varied per tile.
-        for b in 0..3 {
-            if hash(d.anchor.0 + k, d.anchor.1 + b, 91) < 0.45 {
-                let cx = tx + 0.22 + b as f32 * 0.28;
-                let base = vec3(cx, y + 0.012, front + 0.23);
-                mb.boxx(base + Vec3::Y * 0.07, vec3(0.17, 0.1, 0.3), vec2(0.0, 1.0), lighter(col, 0.15));
-                mb.boxx(base + Vec3::Y * 0.15 + vec3(0.0, 0.0, 0.02), vec3(0.14, 0.06, 0.16), vec2(0.0, 1.0), Color::new(0.3, 0.35, 0.42, 1.0));
+    // Painted angled bays, two to each car-park tile; real cars pull into them.
+    let mut lines: Vec<(f32, f32)> = Vec::new();
+    for (i, bx) in d.bay_xs().into_iter().enumerate() {
+        for x in [bx - 0.25, bx + 0.25] {
+            // One line per bay edge, but not against the hedge at either end of the car park.
+            if x > 0.05 && x < w as f32 - 0.05 && !lines.iter().any(|l| (l.0 - x).abs() < 0.05) {
+                lines.push((x, d.bay_side(i)));
             }
         }
     }
-    // A big shop is two small shops side by side, one per driveway, sharing a car park.
-    for u in &door_us {
-        let (ux0, ux1) = if d.big() {
-            let left = (u - 1) as f32;
-            (left + 0.1, left + 2.9)
-        } else {
-            (x0, x1)
-        };
-        draw_shop_unit(mb, ux0, ux1, z0, z1, lift, h, *u as f32 + 0.5, col, grey);
+    for (x, side) in lines {
+        {
+            let (back, tip) = (vec2(x - 0.13 * side, front + 0.56), vec2(x + 0.13 * side, front + 0.08));
+            let n = vec2(0.016, 0.0);
+            let q = |p: Vec2| vec3(p.x, y + 0.016, p.y);
+            mb.flat(&[q(back - n), q(back + n), q(tip + n), q(tip - n)], MARKING);
+        }
+    }
+    // A big shop is two small shops side by side, sharing one car park.
+    let units: Vec<(f32, f32)> = if d.big() { vec![(0.1, 2.9), (3.1, 5.9)] } else { vec![(x0, x1)] };
+    for (ux0, ux1) in units {
+        draw_shop_unit(mb, ux0, ux1, z0, z1, lift, h, (ux0 + ux1) / 2.0, col, grey);
     }
 }
 
@@ -1161,6 +1151,9 @@ fn bezier(a: Vec2, b: Vec2, c: Vec2, u: f32) -> (Vec2, Vec2) {
 /// Where a car is (in tile units on the ground plan) and which way it faces.
 /// Cars follow a curve through turns instead of snapping at tile centres.
 pub fn car_pose(c: &Car) -> (Vec2, Vec2) {
+    if let Some(((x, z), (dx, dz))) = c.pose {
+        return (vec2(x + 0.5, z + 0.5), vec2(dx, dz));
+    }
     let a = centre(c.prev);
     let b = centre(c.cur);
     let t = c.progress;
@@ -1210,7 +1203,8 @@ fn draw_cars(mb: &mut Mb, s: &Sim, poses: &[Option<(Vec2, Vec2)>]) {
             }
         }
         let normal = vec2(-dir.y, dir.x);
-        let p = pos + normal * 0.15;
+        // Keep to the lane on roads; in a car park the car is exactly where it is parked.
+        let p = if c.pose.is_some() { pos } else { pos + normal * 0.15 };
         let seg = (centre(c.cur) - centre(c.prev)).length();
         let ground = if seg > 1.5 {
             hwy_height(seg * c.progress, seg) + 0.03

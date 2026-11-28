@@ -9,7 +9,6 @@ pub const DT: f32 = 1.0 / 60.0;
 /// Car speed in tiles per second.
 pub const CAR_SPEED: f32 = 2.6;
 /// Seconds a car spends at a destination before heading home.
-pub const UNLOAD_TIME: f32 = 0.6;
 /// Pins a small shop can hold before its overflow timer starts (big shops hold half again).
 pub const PIN_LIMIT: u32 = 6;
 /// Seconds of continuous overflow before the game ends.
@@ -126,9 +125,12 @@ pub struct Dest {
     pub facing: usize,
     /// The car-park tile at the front-left of the shop, seen from the front (u = 0, v = 0).
     pub anchor: Pos,
-    /// Driveway tiles, one tile out from the car park: one for a small shop, two for a big
-    /// one. A road may join a driveway from its front or either side.
+    /// Entrance tiles at the ends of the car park: one for a small shop (its left corner seen
+    /// from the front), two for a big one (both corners). A road may join an entrance from
+    /// the front or from the open side.
     pub doors: Vec<Pos>,
+    /// Parking bays in the car park; `Some(car)` while a car is parked or manoeuvring there.
+    pub bays: Vec<Option<usize>>,
     /// Sim time when it appeared, for the arrival animation.
     pub born: f32,
     pub color: usize,
@@ -154,17 +156,22 @@ pub fn dir_between(a: Pos, b: Pos) -> usize {
 }
 
 /// A tile of a shop in its own frame: `u` runs along the front, `v` outward from the car
-/// park row (v = 0), so the building is at v = -2..=-1 and driveways at v = 1.
+/// park row (v = 0), so the building is at v = -2..=-1 and the road in front at v = 1.
 pub fn shop_tile(anchor: Pos, facing: usize, u: i32, v: i32) -> Pos {
     let f = DIRS[facing];
     let a = (f.1, -f.0);
     (anchor.0 + u * a.0 + v * f.0, anchor.1 + u * a.1 + v * f.1)
 }
 
-/// Driveway positions along the front (u) for a shop of width `w`.
+/// Entrance positions along the car park (u): the corners.
 fn door_us(big: bool) -> &'static [i32] {
-    if big { &[1, 4] } else { &[1] }
+    if big { &[0, 5] } else { &[0] }
 }
+
+/// Seconds for a car to pull into a bay, to stay parked, and to back out to the entrance.
+pub const PARK_IN: f32 = 0.9;
+pub const PARK_STAY: f32 = 1.6;
+pub const PARK_OUT: f32 = 0.9;
 
 impl Dest {
     pub fn big(&self) -> bool {
@@ -177,7 +184,71 @@ impl Dest {
     pub fn tile(&self, u: i32, v: i32) -> Pos {
         shop_tile(self.anchor, self.facing, u, v)
     }
-    /// The tile straight out in front of a driveway.
+    /// Local x (along the front, in tiles) of each parking bay's centre: two per car-park
+    /// tile that isn't an entrance.
+    pub fn bay_xs(&self) -> Vec<f32> {
+        let doors: Vec<i32> = (0..self.width()).filter(|&u| self.doors.contains(&self.tile(u, 0))).collect();
+        (0..self.width()).filter(|u| !doors.contains(u)).flat_map(|u| [u as f32 + 0.25, u as f32 + 0.75]).collect()
+    }
+    /// Which way (+1 or -1 along the front) cars pull into each bay at an angle: away from
+    /// the nearest entrance, so they can drive straight in from it.
+    pub fn bay_side(&self, bay: usize) -> f32 {
+        if self.big() && self.bay_xs()[bay] > self.width() as f32 / 2.0 { -1.0 } else { 1.0 }
+    }
+    /// A point in the shop's own frame (x along the front, z outward, with the car park row
+    /// at z 0..1) turned into world tile coordinates (where a tile's centre is at +0.5).
+    pub fn to_world(&self, x: f32, z: f32) -> (f32, f32) {
+        let f = DIRS[self.facing];
+        let a = (f.1, -f.0);
+        let (x, z) = (x - 0.5, z - 0.5);
+        (self.anchor.0 as f32 + a.0 as f32 * x + f.0 as f32 * z, self.anchor.1 as f32 + a.1 as f32 * x + f.1 as f32 * z)
+    }
+    /// A direction in the shop's own frame turned into the world.
+    pub fn dir_to_world(&self, x: f32, z: f32) -> (f32, f32) {
+        let f = DIRS[self.facing];
+        let a = (f.1, -f.0);
+        (a.0 as f32 * x + f.0 as f32 * z, a.1 as f32 * x + f.1 as f32 * z)
+    }
+    /// Local x of the entrance tile `door`.
+    fn door_x(&self, door: Pos) -> f32 {
+        (0..self.width()).find(|&u| self.tile(u, 0) == door).unwrap_or(0) as f32 + 0.5
+    }
+    /// Where a parking car is and which way it faces, `t` seconds after it reached `door`
+    /// on its way into `bay`: along the aisle, nose into the bay, then reversing out.
+    pub fn park_pose(&self, door: Pos, bay: usize, t: f32) -> ((f32, f32), (f32, f32)) {
+        let (dx, bx) = (self.door_x(door), self.bay_xs()[bay]);
+        let (aisle, stall) = (0.72, 0.32);
+        let side = self.bay_side(bay);
+        let travel = if bx - 0.2 * side >= dx { 1.0 } else { -1.0 };
+        let nose = (0.7 * side, -0.7);
+        let lerp = |a: (f32, f32), b: (f32, f32), k: f32| (a.0 + (b.0 - a.0) * k, a.1 + (b.1 - a.1) * k);
+        let ease = |k: f32| k * k * (3.0 - 2.0 * k);
+        let (gate, lane, bay_pt) = ((dx, 0.6), (bx - 0.22 * side, aisle), (bx, stall));
+        let (p, d): ((f32, f32), (f32, f32)) = if t < PARK_IN {
+            // Along the aisle, then swing nose-first into the angled bay.
+            let k = t / PARK_IN;
+            if k < 0.55 {
+                (lerp(gate, lane, ease(k / 0.55)), (travel, 0.0))
+            } else {
+                let q = ease((k - 0.55) / 0.45);
+                (lerp(lane, bay_pt, q), (side * (1.0 - 0.3 * q), -0.7 * q))
+            }
+        } else if t < PARK_IN + PARK_STAY {
+            (bay_pt, nose)
+        } else {
+            // Reverse out to the aisle, then drive back to the entrance.
+            let k = ((t - PARK_IN - PARK_STAY) / PARK_OUT).min(1.0);
+            if k < 0.45 {
+                (lerp(bay_pt, lane, ease(k / 0.45)), nose)
+            } else {
+                (lerp(lane, gate, ease((k - 0.45) / 0.55)), (-travel, 0.0))
+            }
+        };
+        let w = self.to_world(p.0, p.1);
+        let n = (d.0 * d.0 + d.1 * d.1).sqrt().max(1e-3);
+        (w, self.dir_to_world(d.0 / n, d.1 / n))
+    }
+    /// The tile straight out in front of an entrance.
     pub fn entry(&self, door: Pos) -> Pos {
         let f = DIRS[self.facing];
         (door.0 + f.0, door.1 + f.1)
@@ -186,7 +257,7 @@ impl Dest {
     pub fn bounds(&self) -> (Pos, Pos) {
         let mut lo = (i32::MAX, i32::MAX);
         let mut hi = (i32::MIN, i32::MIN);
-        for p in [self.tile(0, -2), self.tile(self.width() - 1, -2), self.tile(0, 1), self.tile(self.width() - 1, 1)] {
+        for p in [self.tile(0, -2), self.tile(self.width() - 1, -2), self.tile(0, 0), self.tile(self.width() - 1, 0)] {
             lo = (lo.0.min(p.0), lo.1.min(p.1));
             hi = (hi.0.max(p.0), hi.1.max(p.1));
         }
@@ -357,6 +428,10 @@ pub struct Car {
     pub retry: f32,
     /// Seconds spent waiting to enter a plain crossing.
     pub wait: f32,
+    /// While at a shop: the bay it holds and seconds since it started pulling in.
+    pub park: Option<(usize, f32)>,
+    /// Where the car is drawn while it manoeuvres in a car park (world tiles, heading).
+    pub pose: Option<((f32, f32), (f32, f32))>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -789,23 +864,23 @@ impl Sim {
     // ----- Spawning ----------------------------------------------------
 
     fn footprint_free(&self, anchor: Pos, facing: usize, w: i32, doors: &[i32]) -> bool {
-        // Building, car park and driveways, plus a one-tile margin, must be clear of buildings,
-        // and the shop itself must sit on empty grass, off any other shop's driveway. The tile
-        // in front of each driveway must be open land or road so a road can always reach it.
+        // Building and car park, plus a one-tile margin, must be clear of buildings, and the
+        // shop itself must sit on empty grass, off any other shop's entrance. The tile in
+        // front of each entrance must be open land or road so a road can always reach it.
         let at = |u, v| shop_tile(anchor, facing, u, v);
         for &u in doors {
-            let p = at(u, 2);
+            let p = at(u, 1);
             if !in_bounds(p) || !(self.cells[idx(p)] == Cell::Road || (self.cells[idx(p)] == Cell::Empty && self.terrain[idx(p)] == Terrain::Grass)) {
                 return false;
             }
         }
-        for v in -3..=2 {
+        for v in -3..=1 {
             for u in -1..=w {
                 let p = at(u, v);
                 if !in_bounds(p) {
                     return false;
                 }
-                let inside = ((-2..=0).contains(&v) && (0..w).contains(&u)) || (v == 1 && doors.contains(&u));
+                let inside = (-2..=0).contains(&v) && (0..w).contains(&u);
                 let c = self.cells[idx(p)];
                 if inside {
                     if c != Cell::Empty || self.terrain[idx(p)] != Terrain::Grass || self.near_roundabout(p) || self.blocks_entrance(p) {
@@ -836,12 +911,10 @@ impl Sim {
                 lo = (lo.0.min(p.0), lo.1.min(p.1));
                 hi = (hi.0.max(p.0), hi.1.max(p.1));
             }
-            self.cells[idx(at(u, 0))] = Cell::Park(id);
+            self.cells[idx(at(u, 0))] = if us.contains(&u) { Cell::Door(id) } else { Cell::Park(id) };
         }
-        let doors: Vec<Pos> = us.iter().map(|&u| at(u, 1)).collect();
-        for p in &doors {
-            self.cells[idx(*p)] = Cell::Door(id);
-        }
+        let doors: Vec<Pos> = us.iter().map(|&u| at(u, 0)).collect();
+        let bays = vec![None; 2 * (w as usize - us.len())];
         self.dests.push(Dest {
             born: self.time,
             origin: lo,
@@ -849,6 +922,7 @@ impl Sim {
             facing,
             anchor,
             doors,
+            bays,
             color,
             pins: 0,
             assigned: 0,
@@ -962,7 +1036,7 @@ impl Sim {
         if self.homes.is_empty() {
             return true;
         }
-        let front: Vec<Pos> = door_us(big).iter().map(|&u| shop_tile(anchor, facing, u, 2)).filter(|p| in_bounds(*p)).collect();
+        let front: Vec<Pos> = door_us(big).iter().map(|&u| shop_tile(anchor, facing, u, 1)).filter(|p| in_bounds(*p)).collect();
         let cost = self.crossing_costs(&front);
         let budget = self.crossing_budget();
         self.homes.iter().any(|h| cost[idx(h.pos)] <= budget)
@@ -1069,21 +1143,23 @@ impl Sim {
             slot: None,
             retry: 0.0,
             wait: 0.0,
+            park: None,
+            pose: None,
         });
         id
     }
 
-    /// Place a shop facing down, for tests and scripted setups. Its building covers rows
-    /// `origin.1 - 1` and `origin.1`, its car park row `origin.1 + 1`, and its driveway is
-    /// at `(origin.0 + 1, origin.1 + 2)`.
+    /// Place a shop facing down, for tests and scripted setups. Its building covers columns
+    /// `origin.0 + 1 ..= origin.0 + 3`, rows `origin.1` and `origin.1 + 1`; its car park is
+    /// row `origin.1 + 2`, with the entrance at its left end, `(origin.0 + 1, origin.1 + 2)`.
     pub fn add_dest(&mut self, origin: Pos, color: usize) -> Option<usize> {
-        self.place_dest(color, (origin.0, origin.1 + 1), 1, false)
+        self.place_dest(color, (origin.0 + 1, origin.1 + 2), 1, false)
     }
 
-    /// Place a big two-driveway shop facing down, laid out like `add_dest`, with driveways
-    /// at `(origin.0 + 1, origin.1 + 2)` and `(origin.0 + 4, origin.1 + 2)`.
+    /// Place a big two-entrance shop facing down, laid out like `add_dest` but six wide, with
+    /// entrances at `(origin.0 + 1, origin.1 + 2)` and `(origin.0 + 6, origin.1 + 2)`.
     pub fn add_big_dest(&mut self, origin: Pos, color: usize) -> Option<usize> {
-        self.place_dest(color, (origin.0, origin.1 + 1), 1, true)
+        self.place_dest(color, (origin.0 + 1, origin.1 + 2), 1, true)
     }
 
     /// Place a shop facing `facing` (a DIRS index) with its car park's front-left tile at
@@ -1458,17 +1534,36 @@ impl Sim {
         match self.cars[c].state {
             CarState::Idle => {}
             CarState::Unloading(d) => {
-                self.cars[c].retry -= dt;
-                if self.cars[c].retry <= 0.0 {
+                // Wait at the entrance for a free bay, drive in and park, then back out.
+                let door = self.cars[c].cur;
+                let Some((bay, t)) = self.cars[c].park else {
+                    if let Some(b) = self.dests[d].bays.iter().position(|b| b.is_none()) {
+                        self.dests[d].bays[b] = Some(c);
+                        self.cars[c].park = Some((b, 0.0));
+                        self.cars[c].pose = Some(self.dests[d].park_pose(door, b, 0.0));
+                    }
+                    return;
+                };
+                let t2 = t + dt;
+                if t < PARK_IN && t2 >= PARK_IN {
                     let dest = &mut self.dests[d];
                     debug_assert!(dest.pins > 0 && dest.assigned > 0);
                     dest.pins = dest.pins.saturating_sub(1);
                     dest.assigned = dest.assigned.saturating_sub(1);
                     self.score += 1;
                     self.events.push(Event::TripDone);
-                    self.cars[c].state = CarState::ToHome;
-                    self.route_car(c);
                 }
+                if t2 >= PARK_IN + PARK_STAY + PARK_OUT {
+                    self.dests[d].bays[bay] = None;
+                    let car = &mut self.cars[c];
+                    car.park = None;
+                    car.pose = None;
+                    car.state = CarState::ToHome;
+                    self.route_car(c);
+                    return;
+                }
+                self.cars[c].park = Some((bay, t2));
+                self.cars[c].pose = Some(self.dests[d].park_pose(door, bay, t2));
             }
             CarState::ToDest(_) | CarState::ToHome => {
                 let car = &mut self.cars[c];
@@ -1545,7 +1640,7 @@ impl Sim {
         match car.state {
             CarState::ToDest(d) => {
                 car.state = CarState::Unloading(d);
-                car.retry = UNLOAD_TIME;
+                car.park = None;
             }
             CarState::ToHome => {
                 if car.cur == self.homes[c].pos {
@@ -1759,12 +1854,12 @@ mod tests {
     fn big_shop_has_two_driveways_and_either_works() {
         let mut s = Sim::empty(8);
         let d = s.add_big_dest((10, 5), 0).unwrap();
-        assert_eq!(s.dests[d].doors, vec![(11, 7), (14, 7)]);
+        assert_eq!(s.dests[d].doors, vec![(11, 7), (16, 7)]);
         assert!(s.dests[d].big());
-        // Home connected only to the right-hand driveway.
-        s.add_home((14, 11), 0);
+        // Home connected only to the right-hand entrance.
+        s.add_home((16, 11), 0);
         for y in 8..=10 {
-            s.place_road((14, y));
+            s.place_road((16, y));
         }
         s.dests[d].pins = 2;
         run(&mut s, 10.0);
@@ -1775,37 +1870,64 @@ mod tests {
     fn shops_have_a_car_park_and_big_ones_can_be_driven_through() {
         let mut s = Sim::empty(8);
         let small = s.add_dest((3, 3), 1).unwrap();
-        assert_eq!(s.cell((3, 3)), Cell::Dest(small));
-        assert_eq!(s.cell((3, 4)), Cell::Park(small));
-        assert_eq!(s.cell((4, 4)), Cell::Park(small));
+        assert_eq!(s.cell((4, 4)), Cell::Dest(small));
         assert_eq!(s.cell((4, 5)), Cell::Door(small));
+        assert_eq!(s.cell((5, 5)), Cell::Park(small));
+        assert_eq!(s.cell((6, 5)), Cell::Park(small));
         assert_eq!(s.cell((3, 5)), Cell::Empty);
+        assert_eq!(s.dests[small].bays.len(), 4);
         let big = s.add_big_dest((10, 5), 2).unwrap();
-        assert_eq!(s.cell((12, 6)), Cell::Park(big));
+        assert_eq!(s.cell((12, 7)), Cell::Park(big));
         assert_eq!(s.cell((11, 7)), Cell::Door(big));
-        assert_eq!(s.cell((14, 7)), Cell::Door(big));
+        assert_eq!(s.cell((16, 7)), Cell::Door(big));
+        assert_eq!(s.dests[big].bays.len(), 8);
         // A teal home east of the big shop; its own shop lies west, reachable only by
-        // driving in one driveway, across the car park and out the other.
-        s.add_home((18, 9), 0);
-        for p in [(17, 9), (16, 9), (15, 9), (14, 9), (14, 8)] {
+        // driving in one entrance, across the car park and out the other.
+        s.add_home((20, 9), 0);
+        for p in [(19, 9), (18, 9), (17, 9), (16, 9), (16, 8)] {
             s.place_road(p);
         }
         let target = s.add_dest((3, 9), 0).unwrap();
-        for p in [(11, 8), (11, 9), (10, 9), (9, 9), (8, 9), (7, 9), (7, 10), (7, 11), (7, 12), (6, 12), (5, 12), (4, 12)] {
+        for p in [(11, 8), (11, 9), (10, 9), (9, 9), (8, 9), (8, 10), (8, 11), (8, 12), (7, 12), (6, 12), (5, 12), (4, 12)] {
             s.place_road(p);
         }
         assert_eq!(s.cell((4, 11)), Cell::Door(target));
-        let path = s.find_path((18, 9), &|p| p == (4, 11)).expect("route through the car park");
-        assert!(path.contains(&(13, 6)) && path.contains(&(12, 6)), "{:?}", path);
-        // A road beside the car park or building doesn't connect into it.
-        s.place_road((9, 6));
-        assert_eq!(s.link_count((9, 6)), 0);
-        s.place_road((16, 5));
-        assert_eq!(s.link_count((16, 5)), 0);
+        let path = s.find_path((20, 9), &|p| p == (4, 11)).expect("route through the car park");
+        assert!(path.contains(&(13, 7)) && path.contains(&(12, 7)), "{:?}", path);
+        // A road beside the building or in front of the parking bays doesn't connect.
+        s.place_road((10, 6));
+        assert_eq!(s.link_count((10, 6)), 0);
+        s.place_road((14, 8));
+        assert_eq!(s.link_count((14, 8)), 0);
         s.dests[target].pins = 2;
         s.dests[big].pins = 0;
         run(&mut s, 20.0);
         assert!(s.score >= 1, "score was {}", s.score);
+    }
+
+    #[test]
+    fn cars_drive_into_a_bay_park_and_leave() {
+        let mut s = connected_setup();
+        s.dests[0].pins = 1;
+        let mut parked = false;
+        for _ in 0..(12.0 / DT) as usize {
+            s.step();
+            if let Some((bay, t)) = s.cars[0].park {
+                assert_eq!(s.dests[0].bays[bay], Some(0));
+                let ((x, z), _) = s.cars[0].pose.unwrap();
+                // Inside the car park row (y 7 here), never on the building.
+                assert!((6.4..7.6).contains(&z) && (10.9..14.1).contains(&x), "pose {x},{z} at {t}");
+                parked = true;
+            }
+        }
+        assert!(parked);
+        assert!(s.score >= 1);
+        // Bays are only held by cars that are actually at the shop.
+        for (bay, holder) in s.dests[0].bays.iter().enumerate() {
+            if let Some(c) = holder {
+                assert_eq!(s.cars[*c].park.map(|p| p.0), Some(bay));
+            }
+        }
     }
 
     #[test]
@@ -1829,9 +1951,10 @@ mod tests {
             let d = s.add_dest_facing((20, 12), facing, 0, false).unwrap();
             let door = s.dests[d].doors[0];
             let f = DIRS[facing];
-            // The car park is straight behind the driveway, the building behind that.
-            assert_eq!(s.cell((door.0 - f.0, door.1 - f.1)), Cell::Park(d));
-            assert_eq!(s.cell((door.0 - 2 * f.0, door.1 - 2 * f.1)), Cell::Dest(d));
+            // The entrance is a corner of the car park: building behind it, bays beside it.
+            let a = (f.1, -f.0);
+            assert_eq!(s.cell((door.0 - f.0, door.1 - f.1)), Cell::Dest(d));
+            assert_eq!(s.cell((door.0 + a.0, door.1 + a.1)), Cell::Park(d));
             let entry = s.dests[d].entry(door);
             let home = (entry.0 + 3 * f.0, entry.1 + 3 * f.1);
             s.add_home(home, 0);
@@ -1842,7 +1965,7 @@ mod tests {
             run(&mut s, 12.0);
             assert!(s.score >= 1, "facing {facing}: score was {}", s.score);
             let (lo, hi) = s.dests[d].bounds();
-            assert_eq!((hi.0 - lo.0 + 1) * (hi.1 - lo.1 + 1), if facing % 2 == 0 { 4 * 3 } else { 3 * 4 });
+            assert_eq!((hi.0 - lo.0 + 1) * (hi.1 - lo.1 + 1), 9);
         }
     }
 

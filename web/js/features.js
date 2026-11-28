@@ -176,7 +176,7 @@ export function initFeatures(app, api) {
   photoBtn.addEventListener('click', () => setPhoto(!app.photo));
   close1.addEventListener('click', () => setPhoto(false));
   save1.addEventListener('click', () => {
-    app.canvas.toBlob((blob) => {
+    (app.snapshotCanvas ? app.snapshotCanvas() : app.canvas).toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

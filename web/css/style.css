@@ -23,6 +23,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--page); color: var(--ink); font-family: var(--font); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+canvas#stage3d { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 canvas#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; }

@@ -98,7 +98,7 @@ fn roads_can_cross_the_railway() {
 fn a_ferry_shuttles_and_the_terminal_gets_pins() {
     let mut found = false;
     for seed in 0..4 {
-        let mut g = Game::new(city_index("hongkong"), seed);
+        let mut g = Game::with_mode(city_index("hongkong"), seed, MODE_ENDLESS); // no game over before the terminal opens
         assert!(g.transits.iter().any(|t| t.kind == 1));
         run(&mut g, 700.0);
         if let Some(t) = g.dests.iter().position(|d| d.kind == 2) {

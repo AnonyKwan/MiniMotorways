@@ -1,11 +1,12 @@
 import { Core, ERR, KIND } from './core.js';
 import { Sound } from './audio.js';
 import {
-  GROUP_COLORS, isUnlocked, lockText, packText, errorText, stepsBetween, clockText, MODES, dailyChallenge,
+  GROUP_COLORS, GROUP_SHAPES, isUnlocked, lockText, packText, errorText, stepsBetween, clockText, MODES, dailyChallenge,
 } from './model.js';
-import { THEMES, buildTerrainLayer, drawScene } from './render.js';
+import { THEMES, buildTerrainLayer, drawScene, glyph } from './render.js';
 import { loadBest, saveBest, loadPref, savePref } from './storage.js';
 import { initFeatures } from './features.js';
+import { Renderer3D, webglAvailable } from './render3d.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('stage');
@@ -36,6 +37,8 @@ const app = {
   view: { zoom: 1, panX: 0, panY: 0 },
   hover: null,
   cam: null,
+  r3: null,
+  use3d: false,
   photo: false,
   canvas,
   W: 0, H: 0, dpr: 1,
@@ -54,6 +57,7 @@ async function boot() {
     document.body.insertAdjacentHTML('beforeend', `<p class="nojs">Could not start the game engine: ${String(e.message || e)}</p>`);
     throw e;
   }
+  initRenderer();
   buildTools();
   buildModes();
   buildMenu();
@@ -66,12 +70,36 @@ async function boot() {
   else showMenu();
 }
 
+function initRenderer() {
+  const want = params.get('render') ? params.get('render') === '3d' : loadPref('render3d', true);
+  app.use3d = false;
+  if (want && webglAvailable()) {
+    try { app.r3 = app.r3 || new Renderer3D($('stage3d')); app.r3.resize(app.W, app.H, app.dpr); app.use3d = true; }
+    catch (e) { console.warn('3D view unavailable, using the flat view', e); app.r3 = null; }
+  }
+  $('stage3d').hidden = !app.use3d;
+  $('btn-render').textContent = app.use3d ? '3D' : '2D';
+  $('btn-render').disabled = !webglAvailable();
+}
+
+/** (Re)builds everything the 3D view needs from the current game. */
+function sync3d() {
+  if (!app.use3d || !app.statics || !app.terrain) return;
+  const layer = buildTerrainLayer(app.statics.w, app.statics.h, app.terrain, THEMES[app.themeName], (w, h) => {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv;
+  }, { flat: true });
+  app.r3.themeName = app.themeName;
+  app.r3.setTerrain(app.statics.w, app.statics.h, app.terrain, layer, app.themeName);
+  app.r3.setStatics(app.statics);
+}
+
 function setTheme(name) {
   app.themeName = name;
   document.documentElement.dataset.theme = name;
   document.querySelector('meta[name="theme-color"]').content = THEMES[name].page;
   savePref('theme', name);
   app.layer = null;
+  if (app.screen === 'game') sync3d();
 }
 
 // ---------- menu ----------
@@ -152,6 +180,7 @@ function startGame(cityIndex, seed, mode = app.mode, opts = {}) {
   app.snap = app.core.snapshot();
   app.statics = app.core.statics();
   app.staticsVer = app.snap.ver;
+  sync3d();
   app.over = false;
   app.view = { zoom: 1, panX: 0, panY: 0 };
   app.cam = null;
@@ -209,11 +238,18 @@ function soundCues() {
 function refreshStatics() {
   app.statics = app.core.statics();
   app.staticsVer = app.snap.ver;
+  if (app.use3d && app.r3) app.r3.setStatics(app.statics);
 }
 
 function render(t) {
   const { W, H } = app;
-  regionBox();
+  const box = regionBox();
+  if (app.use3d && app.r3) {
+    app.r3.setView(box, app.view.zoom, [app.view.panX, app.view.panY]);
+    app.r3.draw({ statics: app.statics, snap: app.snap, born: app.born }, performance.now() / 1000);
+    drawOverlay3d();
+    return;
+  }
   if (!app.layer) {
     app.layer = buildTerrainLayer(app.statics.w, app.statics.h, app.terrain, THEMES[app.themeName], (w, h) => {
       const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv;
@@ -228,6 +264,7 @@ function render(t) {
 }
 
 app.cellCenter = (c) => {
+  if (app.use3d && app.r3) { const p = app.r3.cellCenterPx(c); const r0 = canvas.getBoundingClientRect(); return [r0.left + p[0], r0.top + p[1]]; }
   const v = viewTransform(), w = app.statics.w, r = canvas.getBoundingClientRect();
   return [r.left + v.ox + ((c % w) + 0.5) * v.scale, r.top + v.oy + (Math.floor(c / w) + 0.5) * v.scale];
 };
@@ -259,6 +296,7 @@ function viewTransform() {
   return { ox, oy, scale };
 }
 function cellAt(px, py) {
+  if (app.use3d && app.r3) return app.r3.cellAt(px, py);
   const v = viewTransform();
   const x = Math.floor((px - v.ox) / v.scale), y = Math.floor((py - v.oy) / v.scale);
   if (x < 0 || y < 0 || x >= app.statics.w || y >= app.statics.h) return null;
@@ -492,6 +530,7 @@ canvas.addEventListener('pointerleave', () => { if (!drawing) app.hover = null; 
 
 function clampZoom(z) { return Math.max(0.6, Math.min(4, z)); }
 function zoomAt(px, py, z) {
+  if (app.use3d) { app.view.zoom = z; return; }
   const before = viewTransform();
   const wx = (px - before.ox) / before.scale, wy = (py - before.oy) / before.scale;
   app.view.zoom = z;
@@ -552,6 +591,7 @@ $('btn-over-menu').addEventListener('click', showMenu);
 $('unlock-all').addEventListener('change', (e) => { app.unlockAll = e.target.checked; savePref('unlockAll', app.unlockAll); buildMenu(); });
 
 function resize() {
+  if (app.r3) app.r3.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, 2.5));
   app.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   app.W = window.innerWidth; app.H = window.innerHeight;
   canvas.width = Math.round(app.W * app.dpr);
@@ -559,5 +599,72 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { last = performance.now(); });
+
+app.snapshotCanvas = () => {
+  if (!app.use3d) return canvas;
+  const cv = document.createElement('canvas');
+  cv.width = canvas.width; cv.height = canvas.height;
+  const c2 = cv.getContext('2d');
+  c2.drawImage($('stage3d'), 0, 0, cv.width, cv.height);
+  c2.drawImage(canvas, 0, 0);
+  return cv;
+};
+
+/** Pins, overflow rings and hover hints, drawn flat on top of the 3D view so they always face the camera. */
+function drawOverlay3d() {
+  const r3 = app.r3, theme = THEMES[app.themeName], colors = GROUP_COLORS[app.themeName];
+  ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
+  ctx.clearRect(0, 0, app.W, app.H);
+  const w = app.statics.w;
+  (app.statics.dests || []).forEach(([c, g, , ], i) => {
+    const info = (app.snap.dests || [])[i];
+    if (!info) return;
+    const [pins, , ot, thr] = info;
+    const cx = (c % w) + 1, cz = Math.floor(c / w) + 1;
+    const base = r3.project(cx, 1.5, cz - 0.15);
+    const ground = r3.project(cx, 0.1, cz);
+    if (!base || !ground) return;
+    const ppc = r3.pxPerCell(cx, cz);
+    if (ot > 0.01) {
+      const frac = Math.min(1, ot / 50), rx = ppc * 1.5, ry = rx * 0.78;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = Math.max(3, ppc * 0.16);
+      ctx.beginPath(); ctx.ellipse(ground[0], ground[1], rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = theme.alarm; ctx.lineWidth = Math.max(3, ppc * 0.14);
+      ctx.beginPath(); ctx.ellipse(ground[0], ground[1], rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); ctx.stroke();
+    }
+    for (let p = 0; p < pins; p++) {
+      const col = p % 5, row = Math.floor(p / 5);
+      const px = base[0] + (col - (Math.min(pins, 5) - 1) / 2) * ppc * 0.36;
+      const py = base[1] - ppc * 0.45 - row * ppc * 0.38;
+      const over = p >= thr;
+      ctx.fillStyle = theme.shadow; ctx.beginPath(); ctx.arc(px + 1.5, py + 2.5, ppc * 0.17, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py, ppc * 0.17, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px - ppc * 0.1, py + ppc * 0.1); ctx.lineTo(px, py + ppc * 0.27); ctx.lineTo(px + ppc * 0.1, py + ppc * 0.1); ctx.fill();
+      ctx.fillStyle = over ? theme.alarm : colors[g];
+      glyph(ctx, GROUP_SHAPES[g], px, py, ppc * 0.1); ctx.fill();
+    }
+  });
+  const hv = app.hover;
+  if (hv) {
+    ctx.strokeStyle = hv.color || theme.ink; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    const at = (cell) => r3.cellCenterPx(cell);
+    if (hv.line) {
+      const a = at(hv.line[0]), b = at(hv.line[1]);
+      ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (hv.cell != null) {
+      const p0 = at(hv.cell), ppc = r3.pxPerCell((hv.cell % w) + 0.5, Math.floor(hv.cell / w) + 0.5);
+      ctx.beginPath(); ctx.ellipse(p0[0], p0[1], ppc * 0.45, ppc * 0.36, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+}
+
+$('btn-render').addEventListener('click', () => {
+  const want = !app.use3d;
+  savePref('render3d', want);
+  if (want) { initRenderer(); } else { app.use3d = false; $('stage3d').hidden = true; $('btn-render').textContent = '2D'; app.layer = null; }
+  if (app.screen === 'game') { if (app.use3d) sync3d(); }
+});
 
 boot();

@@ -46,7 +46,7 @@ test('start a map, let the town grow, draw and erase a road', async ({ page }) =
 
   // the canvas is not blank
   const painted = await page.evaluate(() => {
-    const c = document.getElementById('stage');
+    const c = window.__ll.snapshotCanvas();
     const g = c.getContext('2d');
     const d = g.getImageData(0, 0, c.width, c.height).data;
     const seen = new Set();

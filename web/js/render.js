@@ -75,7 +75,7 @@ function shade(hex, amt) {
 }
 
 /** Terrain painted once into an offscreen canvas (S pixels per cell). */
-export function buildTerrainLayer(w, h, bytes, theme, makeCanvas) {
+export function buildTerrainLayer(w, h, bytes, theme, makeCanvas, opts = {}) {
   const S = 32;
   const cv = makeCanvas(w * S, h * S);
   const c = cv.getContext('2d');
@@ -150,7 +150,7 @@ export function buildTerrainLayer(w, h, bytes, theme, makeCanvas) {
   c.lineWidth = 1.5;
   c.stroke();
   // railway: sleepers and two steel rails
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; y < h && !opts.flat; y++) {
     for (let x = 0; x < w; x++) {
       if (!(bytes[y * w + x] & 8)) continue;
       c.fillStyle = theme.trunk;
@@ -168,7 +168,7 @@ export function buildTerrainLayer(w, h, bytes, theme, makeCanvas) {
       c.fillRect(x * S, y * S, S + 1, S + 1);
     }
   }
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; y < h && !opts.flat; y++) {
     for (let x = 0; x < w; x++) {
       if (kindAt(x, y) !== 2) continue;
       const peaks = 1 + Math.floor(cellHash(x, y, 8) * 2.2);
@@ -188,7 +188,7 @@ export function buildTerrainLayer(w, h, bytes, theme, makeCanvas) {
     }
   }
   // trees: shadow, trunk, two-tone canopy
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; y < h && !opts.flat; y++) {
     for (let x = 0; x < w; x++) {
       if (!(bytes[y * w + x] & 4)) continue;
       const cx = x * S + S * (0.45 + 0.1 * cellHash(x, y, 21)), cy = y * S + S * 0.55;

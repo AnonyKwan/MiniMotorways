@@ -1,4 +1,4 @@
-commit: f303bd57152c7436689782285233e7d2bc035830  ref: rails  run: 46125245167
+commit: bc489896fc136c6c86aa1f0b946d4c600f467db5  ref: rails  run: 46125424420
 -----
 [1m[92m   Compiling[0m little-lanes-core v0.2.0 (/home/runner/work/LittleLanes/LittleLanes)
 [1m[92m    Finished[0m `release` profile [optimized] target(s) in 2.02s

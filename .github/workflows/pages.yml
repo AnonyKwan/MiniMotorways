@@ -1,21 +1,23 @@
-name: Publish to GitHub Pages
+name: Build, test and publish
 
 on:
   push:
-    branches: [main]
+    branches-ignore: [ci-logs]
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
-  group: pages
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  rust:
+    name: Rust tests and WebAssembly build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,22 +25,103 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Test game rules
-        run: cargo test --release --lib --tests
-      - name: Build the web version
-        run: ./build_web.sh
+      - name: Test the simulation
+        run: |
+          set -o pipefail
+          cargo test --release 2>&1 | tee rust-test.log
+      - name: Build WebAssembly
+        run: |
+          set -o pipefail
+          cargo build --release --target wasm32-unknown-unknown 2>&1 | tee rust-build.log
+      - name: Assemble the site
+        run: bash tools/build_web.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist
+      - name: Publish logs
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash tools/push_log.sh rust-test rust-test.log
+          bash tools/push_log.sh rust-build rust-build.log
+
+  web:
+    name: Browser code tests
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
+      - name: Test the browser code against the real WebAssembly
+        run: |
+          set -o pipefail
+          node --test tests-js/ 2>&1 | tee web-test.log
+      - name: Publish logs
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tools/push_log.sh web-test web-test.log
+
+  e2e:
+    name: Play it in a real browser
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
+      - name: Install Playwright
+        run: |
+          cd e2e
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run the browser tests
+        run: |
+          set -o pipefail
+          cd e2e
+          npx playwright test 2>&1 | tee ../e2e-test.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: e2e/shots
+      - name: Publish logs
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tools/push_log.sh e2e-test e2e-test.log
+
+  deploy:
+    name: Publish to GitHub Pages
+    if: github.ref == 'refs/heads/main'
+    needs: [rust, web, e2e]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
       - uses: actions/configure-pages@v5
         with:
           enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -1,22 +1,20 @@
 [package]
-name = "little-lanes"
-version = "0.1.0"
+name = "little-lanes-core"
+version = "0.2.0"
 edition = "2021"
-description = "A minimalist road-drawing traffic puzzle for the browser"
+description = "Deterministic simulation core of Little Lanes, compiled to WebAssembly"
 license = "MIT"
 
 [lib]
-path = "src/lib.rs"
-
-[[bin]]
-name = "little-lanes"
-path = "src/main.rs"
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-macroquad = { version = "0.4", default-features = false }
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[profile.test]
+opt-level = 2

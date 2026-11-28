@@ -106,6 +106,19 @@ jobs:
           bash tools/push_log.sh e2e-test e2e-test.log
           bash tools/push_files.sh e2e/shots
 
+  status:
+    name: All checks passed
+    needs: [rust, web, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record the green run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "PASS ${GITHUB_SHA}" > status.txt
+          bash tools/push_log.sh status status.txt
+
   deploy:
     name: Publish to GitHub Pages
     if: github.ref == 'refs/heads/main'

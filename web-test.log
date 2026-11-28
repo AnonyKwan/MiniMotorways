@@ -1,39 +1,102 @@
-commit: e461580ec406489102bf2ba381e0e29b12454140  ref: rebuild  run: 46117316572
+commit: a546ca034d16196800dd4963f3f5be50a46980d4  ref: rebuild  run: 46117438544
 -----
 TAP version 13
-# node:internal/modules/cjs/loader:1433
-#   throw err;
-#   ^
-# Error: Cannot find module '/home/runner/work/LittleLanes/LittleLanes/tests-js'
-#     at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
-#     at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
-#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
-#     at Function._load (node:internal/modules/cjs/loader:1216:25)
-#     at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
-#     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
-#     at node:internal/main/run_main_module:36:49 {
-#   code: 'MODULE_NOT_FOUND',
-#   requireStack: []
-# }
-# Node.js v22.23.5
-# Subtest: tests-js
-not ok 1 - tests-js
+# Subtest: catalog lists the 27 maps and the hidden one
+ok 1 - catalog lists the 27 maps and the hidden one
   ---
-  duration_ms: 27.649232
+  duration_ms: 111.539015
   type: 'test'
-  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-1..1
-# tests 1
+# Subtest: a new game starts empty and clean
+ok 2 - a new game starts empty and clean
+  ---
+  duration_ms: 5.049921
+  type: 'test'
+  ...
+# Subtest: same seed gives the same game, different seed a different one
+ok 3 - same seed gives the same game, different seed a different one
+  ---
+  duration_ms: 15.511546
+  type: 'test'
+  ...
+# Subtest: drawing a road spends concrete and erasing gives it back
+ok 4 - drawing a road spends concrete and erasing gives it back
+  ---
+  duration_ms: 15.386774
+  type: 'test'
+  ...
+# Subtest: bad requests come back as codes, not crashes
+ok 5 - bad requests come back as codes, not crashes
+  ---
+  duration_ms: 3.954918
+  type: 'test'
+  ...
+# Subtest: every map plays for two minutes of game time without trapping
+ok 6 - every map plays for two minutes of game time without trapping
+  ---
+  duration_ms: 21.459636
+  type: 'test'
+  ...
+# Subtest: the first weekly offer opens after 140 seconds and can be taken
+ok 7 - the first weekly offer opens after 140 seconds and can be taken
+  ---
+  duration_ms: 5.480648
+  type: 'test'
+  ...
+# Subtest: five maps are open from the start
+ok 8 - five maps are open from the start
+  ---
+  duration_ms: 0.862255
+  type: 'test'
+  ...
+# Subtest: the unlock chain follows the design
+ok 9 - the unlock chain follows the design
+  ---
+  duration_ms: 1.010718
+  type: 'test'
+  ...
+# Subtest: unlock all opens everything
+ok 10 - unlock all opens everything
+  ---
+  duration_ms: 0.078348
+  type: 'test'
+  ...
+# Subtest: lock text names the requirement
+ok 11 - lock text names the requirement
+  ---
+  duration_ms: 0.201152
+  type: 'test'
+  ...
+# Subtest: dragging across cells moves one step at a time and ends on target
+ok 12 - dragging across cells moves one step at a time and ends on target
+  ---
+  duration_ms: 0.591237
+  type: 'test'
+  ...
+# Subtest: error codes have friendly text
+ok 13 - error codes have friendly text
+  ---
+  duration_ms: 0.103285
+  type: 'test'
+  ...
+# Subtest: clock and pack text
+ok 14 - clock and pack text
+  ---
+  duration_ms: 0.162775
+  type: 'test'
+  ...
+# Subtest: every colour has its own shape, in both themes
+ok 15 - every colour has its own shape, in both themes
+  ---
+  duration_ms: 0.094872
+  type: 'test'
+  ...
+1..15
+# tests 15
 # suites 0
-# pass 0
-# fail 1
+# pass 15
+# fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 33.680024
+# duration_ms 247.107121

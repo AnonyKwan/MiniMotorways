@@ -4,13 +4,13 @@ import { GROUP_COLORS, GROUP_SHAPES } from './model.js';
 
 export const THEMES = {
   light: {
-    page: '#ece5d6', land: '#f3eee0', landTint: '#e7e1cd', grass: '#cfdcae', grid: 'rgba(80,66,40,0.05)',
+    page: '#ece5d6', land: '#f3eee0', landTint: '#eee8d6', grass: '#cfdcae', grid: 'rgba(80,66,40,0.05)',
     water: '#9fcfe3', waterDeep: '#86bfd8', wave: 'rgba(255,255,255,0.45)', foam: '#e9f6fb', shore: '#6fa9c4',
     mountain: '#d3c7ae', mountainLight: '#e6dcc6', mountainDark: '#a79b82', snow: '#fbf8f0',
     tree: '#84b58d', treeDark: '#5d9470', treeLight: '#a6cfa9', trunk: '#8a6b4a',
     asphalt: '#59616d', asphaltEdge: '#3d444e', marking: 'rgba(255,255,255,0.55)',
     deck: '#f6f1e4', deckEdge: '#b9b09b', rail: '#d9d1be', tunnel: '#2e3138', tunnelLight: '#4a4f58',
-    slab: '#d9d6cb', slabLine: 'rgba(255,255,255,0.8)',
+    slab: '#c9c5b6', slabLine: 'rgba(255,255,255,0.8)',
     ink: '#2b2f36', pinFill: '#ffffff', alarm: '#e5483b', shadow: 'rgba(48,38,16,0.20)', motorway: '#3b4350', dry: 'rgba(255,255,255,0.35)',
   },
   dark: {
@@ -87,9 +87,11 @@ export function buildTerrainLayer(w, h, bytes, theme, makeCanvas) {
     for (let x = 0; x < w; x++) {
       if (kindAt(x, y) !== 0) continue;
       const r = cellHash(x, y, 1);
-      if (r < 0.28) {
+      if (r < 0.3) {
         c.fillStyle = theme.landTint;
-        c.fillRect(x * S, y * S, S, S);
+        c.beginPath();
+        c.ellipse(x * S + S / 2, y * S + S / 2, S * 0.8, S * 0.7, cellHash(x, y, 30) * 3, 0, Math.PI * 2);
+        c.fill();
       }
       if (r > 0.86) {
         c.fillStyle = theme.grass;
@@ -349,7 +351,7 @@ export function drawScene(ctx, W, H, view, scene, theme, themeName, time, now = 
     for (let j = 1; j < 6; j++) { ctx.moveTo(x0 + s * 0.1 + j * (s * 1.8 / 6), y0 + s * 1.66); ctx.lineTo(x0 + s * 0.1 + j * (s * 1.8 / 6), y0 + s * 1.9); }
     ctx.stroke();
     // the building itself
-    const bs = s * 1.12;
+    const bs = s * 1.3;
     ctx.fillStyle = shade(colors[g], -0.16);
     if (level > 0) { ctx.beginPath(); ctx.arc(cx, cy - s * 0.12, bs * 0.56, 0, Math.PI * 2); ctx.fill(); }
     else { roundRect(ctx, cx - bs / 2, cy - s * 0.12 - bs / 2, bs, bs, s * 0.2); ctx.fill(); }

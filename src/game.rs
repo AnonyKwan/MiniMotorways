@@ -9,6 +9,10 @@ pub const NO_DEST: usize = usize::MAX;
 /// N, NE, E, SE, S, SW, W, NW as (dx, dy). Odd indices are diagonals.
 pub const DIRS: [(i32, i32); 8] = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)];
 
+pub const MODE_CLASSIC: u8 = 0;
+pub const MODE_EXPERT: u8 = 1;
+pub const MODE_CREATIVE: u8 = 2;
+
 pub const B_NONE: u8 = 0;
 pub const B_HOUSE: u8 = 1;
 pub const B_DEST: u8 = 2;
@@ -86,12 +90,15 @@ pub struct Game {
     pub city_idx: usize,
     pub city: &'static City,
     pub seed: u32,
+    pub mode: u8,
     pub w: i32,
     pub h: i32,
     pub rng: Rng,
     pub terrain: Terrain,
     /// Bit d set: a road leaves this cell in direction d.
     pub conn: Vec<u8>,
+    /// Seconds since each road connection was built (Expert mode makes roads permanent).
+    pub age: Vec<[f32; 8]>,
     pub bkind: Vec<u8>,
     pub bidx: Vec<u32>,
     pub houses: Vec<House>,
@@ -131,6 +138,10 @@ pub struct Game {
 
 impl Game {
     pub fn new(city_idx: usize, seed: u32) -> Game {
+        Self::with_mode(city_idx, seed, MODE_CLASSIC)
+    }
+
+    pub fn with_mode(city_idx: usize, seed: u32, mode: u8) -> Game {
         let city_idx = city_idx.min(CITIES.len() - 1);
         let city: &'static City = &CITIES[city_idx];
         let mut rng = Rng::new(((city_idx as u64) << 32) ^ seed as u64);
@@ -148,15 +159,20 @@ impl Game {
                 extra_demand: 0.0,
             })
             .collect();
+        if mode == MODE_CREATIVE {
+            owned = [9999; KINDS];
+        }
         Game {
             city_idx,
             city,
             seed,
+            mode,
             w: city.w,
             h: city.h,
             rng,
             terrain,
             conn: vec![0; n],
+            age: vec![[0.0; 8]; n],
             bkind: vec![B_NONE; n],
             bidx: vec![NONE; n],
             houses: Vec::new(),
@@ -258,6 +274,9 @@ impl Game {
         self.tick_dispatch(dt);
         self.tick_cars(dt);
         self.tick_week(dt);
+        if self.mode == MODE_EXPERT {
+            self.tick_permanence(dt);
+        }
     }
 
     // ---- demand ----
@@ -336,6 +355,9 @@ impl Game {
     }
 
     fn tick_overcrowd(&mut self, dt: f32) {
+        if self.mode == MODE_CREATIVE {
+            return;
+        }
         for di in 0..self.dests.len() {
             let thr = Self::pin_threshold(self.dests[di].level);
             let extra = self.groups[self.dests[di].group as usize].extra_demand;

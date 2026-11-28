@@ -19,6 +19,7 @@ pub const E_GAME_OVER: i32 = 11;
 pub const E_NOTHING: i32 = 12;
 pub const E_TOO_SHORT: i32 = 13;
 pub const E_NO_OFFER: i32 = 14;
+pub const E_PERMANENT: i32 = 15;
 
 impl Game {
     pub fn has_ground_edge(&self, a: u32, b: u32) -> bool {
@@ -136,6 +137,8 @@ impl Game {
         let (tree_a, tree_b) = (self.terrain.tree[a as usize], self.terrain.tree[b as usize]);
         self.conn[a as usize] |= 1 << d;
         self.conn[b as usize] |= 1 << od;
+        self.age[a as usize][d] = 0.0;
+        self.age[b as usize][od] = 0.0;
         self.terrain.tree[a as usize] = false;
         self.terrain.tree[b as usize] = false;
         self.concrete_used += cost;
@@ -173,6 +176,9 @@ impl Game {
         if self.conn[a as usize] & (1 << d) == 0 {
             return E_NOTHING;
         }
+        if self.mode == MODE_EXPERT && self.age[a as usize][d] >= PERMANENCE_SECONDS * PERMANENCE_LOCK_FRACTION {
+            return E_PERMANENT;
+        }
         let od = (d + 4) % 8;
         self.conn[a as usize] &= !(1 << d);
         self.conn[b as usize] &= !(1 << od);
@@ -197,8 +203,9 @@ impl Game {
         for d in 0..8 {
             if self.conn[c as usize] & (1 << d) != 0 {
                 if let Some(m) = self.step_cell(c, d) {
-                    self.remove_road(c, m);
-                    changed = true;
+                    if self.remove_road(c, m) == OK {
+                        changed = true;
+                    }
                 }
             }
         }
@@ -296,6 +303,33 @@ impl Game {
 
     pub fn toggle_roundabout(&mut self, c: u32) -> i32 {
         self.toggle_junction_part(c, K_ROUND)
+    }
+
+    /// Expert mode: road connections dry and become permanent.
+    pub fn tick_permanence(&mut self, dt: f32) {
+        for i in 0..self.conn.len() {
+            let bits = self.conn[i];
+            if bits == 0 {
+                continue;
+            }
+            for d in 0..8 {
+                if bits & (1 << d) != 0 && self.age[i][d] < PERMANENCE_SECONDS {
+                    self.age[i][d] += dt;
+                }
+            }
+        }
+    }
+
+    /// Share (0..1) of the permanence timer used up by the youngest road at a cell.
+    pub fn permanence_at(&self, c: u32) -> f32 {
+        let i = c as usize;
+        let mut youngest = PERMANENCE_SECONDS;
+        for d in 0..8 {
+            if self.conn[i] & (1 << d) != 0 {
+                youngest = youngest.min(self.age[i][d]);
+            }
+        }
+        (youngest / PERMANENCE_SECONDS).min(1.0)
     }
 
     // ---- accounting used by the UI and the tests ----

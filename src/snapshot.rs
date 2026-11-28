@@ -56,8 +56,9 @@ impl Game {
         let lights: Vec<String> = (0..self.light.len()).filter(|&i| self.light[i]).map(|i| i.to_string()).collect();
         let rounds: Vec<String> = (0..self.round.len()).filter(|&i| self.round[i]).map(|i| i.to_string()).collect();
         format!(
-            "{{\"ver\":{},\"w\":{},\"h\":{},\"houses\":{},\"dests\":{},\"roads\":{},\"mw\":{},\"lights\":{},\"rounds\":{}}}",
+            "{{\"ver\":{},\"mode\":{},\"w\":{},\"h\":{},\"houses\":{},\"dests\":{},\"roads\":{},\"mw\":{},\"lights\":{},\"rounds\":{}}}",
             self.static_ver,
+            self.mode,
             self.w,
             self.h,
             array(&houses),
@@ -85,8 +86,19 @@ impl Game {
             .iter()
             .map(|d| format!("[{},{},{},{}]", d.pins, d.level, num(d.ot), Self::pin_threshold(d.level)))
             .collect();
+        let mut dry = Vec::new();
+        if self.mode == MODE_EXPERT {
+            for c in 0..self.conn.len() as u32 {
+                if self.conn[c as usize] != 0 {
+                    let f = self.permanence_at(c);
+                    if f < 1.0 {
+                        dry.push(format!("[{},{}]", c, num(f)));
+                    }
+                }
+            }
+        }
         format!(
-            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{}}}",
+            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{}}}",
             num(self.time),
             num(self.day()),
             self.week,
@@ -99,7 +111,8 @@ impl Game {
             array(&up),
             array(&offers),
             array(&cars),
-            array(&dests)
+            array(&dests),
+            array(&dry)
         )
     }
 }

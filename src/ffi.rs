@@ -48,6 +48,15 @@ pub extern "C" fn ll_new(city: u32, seed: u32) -> u32 {
     1
 }
 
+/// Starts a new game in a mode: 0 classic, 1 expert, 2 creative.
+#[no_mangle]
+pub extern "C" fn ll_new_mode(city: u32, seed: u32, mode: u32) -> u32 {
+    unsafe {
+        GAME = Some(Game::with_mode(city as usize, seed, mode as u8));
+    }
+    1
+}
+
 #[no_mangle]
 pub extern "C" fn ll_step(dt: f32) {
     if let Some(g) = game() {

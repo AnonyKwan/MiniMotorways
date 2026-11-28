@@ -6,7 +6,7 @@ use crate::roads::{E_GAME_OVER, E_NO_OFFER, E_NOTHING, OK};
 
 impl Game {
     pub fn tick_week(&mut self, dt: f32) {
-        if self.offer_open {
+        if self.offer_open || self.mode == MODE_CREATIVE {
             return;
         }
         self.week_timer += dt;

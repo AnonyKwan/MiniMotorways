@@ -1,3 +1,39 @@
-commit: 4ecb0234b0dff5cc774a5ec51e21b2c410c9959c  ref: rebuild  run: 46117224065
+commit: e461580ec406489102bf2ba381e0e29b12454140  ref: rebuild  run: 46117316572
 -----
-Could not find 'tests-js/'
+TAP version 13
+# node:internal/modules/cjs/loader:1433
+#   throw err;
+#   ^
+# Error: Cannot find module '/home/runner/work/LittleLanes/LittleLanes/tests-js'
+#     at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+#     at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+#     at Function._load (node:internal/modules/cjs/loader:1216:25)
+#     at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+#     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+#     at node:internal/main/run_main_module:36:49 {
+#   code: 'MODULE_NOT_FOUND',
+#   requireStack: []
+# }
+# Node.js v22.23.5
+# Subtest: tests-js
+not ok 1 - tests-js
+  ---
+  duration_ms: 27.649232
+  type: 'test'
+  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 33.680024

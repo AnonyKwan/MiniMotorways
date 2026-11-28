@@ -1,107 +1,71 @@
-commit: c5ee4bd1db721968712abb2ab933c15346a3cd1b  ref: rebuild  run: 46117703064
+commit: d56db02ba1720439726ee810f4aab1e938f1a0b0  ref: rebuild  run: 46117814613
 -----
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:33] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:58] "GET /index.html HTTP/1.1" 200 -
 
 Running 7 tests using 1 worker
 
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /index.html HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  1 game.spec.mjs:13:1 › the map list shows five open maps and the rest locked (232ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /index.html HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:34] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  2 game.spec.mjs:25:1 › unlocking every map opens them all (133ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /index.html?city=beijing&seed=4 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:35] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✘  3 game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road (645ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /index.html?city=london&seed=2 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  4 game.spec.mjs:91:1 › the weekly upgrade card appears and can be picked (421ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  5 game.spec.mjs:104:1 › an unattended town ends in the game over screen (309ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /index.html?theme=light HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:36] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✓  6 game.spec.mjs:114:1 › light and dark themes both work (191ms)
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /index.html?city=losangeles&seed=3 HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /js/main.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /css/style.css HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /js/storage.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /js/model.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /js/render.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /js/core.js HTTP/1.1" 200 -
-[WebServer] 127.0.0.1 - - [28/Nov/2026 06:41:37] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
-  ✘  7 game.spec.mjs:122:1 › it fits a phone screen and takes touch (454ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  1 game.spec.mjs:13:1 › the map list shows five open maps and the rest locked (315ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /index.html HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:42:59] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  2 game.spec.mjs:25:1 › unlocking every map opens them all (153ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /index.html?city=beijing&seed=4 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:00] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  3 game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road (952ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /index.html?city=london&seed=2 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  4 game.spec.mjs:91:1 › the weekly upgrade card appears and can be picked (389ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /index.html?city=tokyo&seed=7 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  5 game.spec.mjs:104:1 › an unattended town ends in the game over screen (439ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /index.html?theme=light HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:01] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  6 game.spec.mjs:114:1 › light and dark themes both work (243ms)
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /index.html?city=losangeles&seed=3 HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /css/style.css HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /js/main.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /js/render.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /js/model.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /js/core.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /js/storage.js HTTP/1.1" 200 -
+[WebServer] 127.0.0.1 - - [28/Nov/2026 06:43:02] "GET /little_lanes_core.wasm HTTP/1.1" 200 -
+  ✓  7 game.spec.mjs:122:1 › it fits a phone screen and takes touch (650ms)
 
-
-  1) game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road ────────────────────
-
-    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
-
-    Expected: [32m2[39m
-    Received: [31m0[39m
-
-      75 |   await page.mouse.up();
-      76 |   const used = await page.evaluate(() => window.__ll.snap.up[0][1]);
-    > 77 |   expect(used).toBe(2);
-         |                ^
-      78 |   await expect(page.locator('.tool[data-tool="road"] .count')).toHaveText('28');
-      79 |
-      80 |   // right-drag erases it again
-        at /home/runner/work/LittleLanes/LittleLanes/e2e/game.spec.mjs:77:16
-
-  2) game.spec.mjs:122:1 › it fits a phone screen and takes touch ──────────────────────────────────
-
-    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
-
-    Expected: [32mfalse[39m
-    Received: [31mtrue[39m
-
-      129 |   await page.waitForTimeout(300);
-      130 |   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-    > 131 |   expect(overflow).toBe(false);
-          |                    ^
-      132 |   await expect(page.locator('#tools')).toBeVisible();
-      133 |   await page.screenshot({ path: 'shots/phone.png' });
-      134 |   expect(errors).toEqual([]);
-        at /home/runner/work/LittleLanes/LittleLanes/e2e/game.spec.mjs:131:20
-
-  2 failed
-    game.spec.mjs:31:1 › start a map, let the town grow, draw and erase a road ─────────────────────
-    game.spec.mjs:122:1 › it fits a phone screen and takes touch ───────────────────────────────────
-  5 passed (3.7s)
+  7 passed (4.0s)

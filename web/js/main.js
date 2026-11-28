@@ -245,6 +245,9 @@ function render(t) {
   const { W, H } = app;
   const box = regionBox();
   if (app.use3d && app.r3) {
+    app.r3.top = app.photo ? 10 : 64;
+    app.r3.bottom = app.photo ? 10 : 96;
+    app.r3.noFog = app.photo || app.playMode === 3;
     app.r3.setView(box, app.view.zoom, [app.view.panX, app.view.panY]);
     app.r3.draw({ statics: app.statics, snap: app.snap, born: app.born }, performance.now() / 1000);
     drawOverlay3d();

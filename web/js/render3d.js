@@ -114,17 +114,18 @@ const VS = `#version 300 es
 in vec3 aPos; in vec3 aNorm;
 in vec4 aM0; in vec4 aM1; in vec4 aM2; in vec4 aM3; in vec4 aCol;
 uniform mat4 uVP;
-out vec3 vN; out vec4 vCol; out float vY;
+out vec3 vN; out vec4 vCol; out float vY; out vec2 vXZ;
 void main() {
   mat4 m = mat4(aM0, aM1, aM2, aM3);
   vec4 w = m * vec4(aPos, 1.0);
   vN = normalize(mat3(m) * aNorm);
-  vCol = aCol; vY = w.y;
+  vCol = aCol; vY = w.y; vXZ = w.xz;
   gl_Position = uVP * w;
 }`;
 const FS = `#version 300 es
 precision mediump float;
-in vec3 vN; in vec4 vCol; in float vY;
+in vec3 vN; in vec4 vCol; in float vY; in vec2 vXZ;
+uniform vec4 uRegion; uniform vec3 uFog;
 uniform vec3 uSun; uniform vec3 uSky; uniform vec3 uGround; uniform float uAmb; uniform float uSunI;
 out vec4 o;
 void main() {
@@ -133,15 +134,22 @@ void main() {
   vec3 hemi = mix(uGround, uSky, n.y * 0.5 + 0.5);
   float ao = mix(0.78, 1.0, clamp(vY * 1.6, 0.0, 1.0));
   vec3 c = vCol.rgb * (hemi * uAmb + vec3(1.0, 0.97, 0.9) * d * uSunI) * ao;
+  float d = min(min(vXZ.x - uRegion.x, uRegion.z - vXZ.x), min(vXZ.y - uRegion.y, uRegion.w - vXZ.y));
+  c = mix(mix(c, uFog, 0.78), c, smoothstep(-0.5, 0.5, d));
   o = vec4(c, vCol.a);
 }`;
 const GVS = `#version 300 es
-in vec2 aP; uniform mat4 uVP; uniform vec2 uSize; out vec2 vUv;
-void main() { vUv = aP; gl_Position = uVP * vec4(aP.x * uSize.x, 0.0, aP.y * uSize.y, 1.0); }`;
+in vec2 aP; uniform mat4 uVP; uniform vec2 uSize; out vec2 vUv; out vec2 vXZ;
+void main() { vUv = aP; vXZ = aP * uSize; gl_Position = uVP * vec4(aP.x * uSize.x, 0.0, aP.y * uSize.y, 1.0); }`;
 const GFS = `#version 300 es
 precision mediump float;
-in vec2 vUv; uniform sampler2D uTex; uniform float uLight; out vec4 o;
-void main() { vec3 c = texture(uTex, vUv).rgb * uLight; o = vec4(c, 1.0); }`;
+in vec2 vUv; in vec2 vXZ; uniform sampler2D uTex; uniform float uLight; uniform vec4 uRegion; uniform vec3 uFog; out vec4 o;
+void main() {
+  vec3 c = texture(uTex, vUv).rgb * uLight;
+  float d = min(min(vXZ.x - uRegion.x, uRegion.z - vXZ.x), min(vXZ.y - uRegion.y, uRegion.w - vXZ.y));
+  c = mix(mix(c, uFog, 0.78), c, smoothstep(-0.5, 0.5, d));
+  o = vec4(c, 1.0);
+}`;
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -189,8 +197,8 @@ export class Renderer3D {
     this.prog = program(gl, VS, FS);
     this.gprog = program(gl, GVS, GFS);
     this.u = {};
-    for (const n of ['uVP', 'uSun', 'uSky', 'uGround', 'uAmb', 'uSunI']) this.u[n] = gl.getUniformLocation(this.prog, n);
-    this.gu = { uVP: gl.getUniformLocation(this.gprog, 'uVP'), uSize: gl.getUniformLocation(this.gprog, 'uSize'), uTex: gl.getUniformLocation(this.gprog, 'uTex'), uLight: gl.getUniformLocation(this.gprog, 'uLight') };
+    for (const n of ['uVP', 'uSun', 'uSky', 'uGround', 'uAmb', 'uSunI', 'uRegion', 'uFog']) this.u[n] = gl.getUniformLocation(this.prog, n);
+    this.gu = { uVP: gl.getUniformLocation(this.gprog, 'uVP'), uSize: gl.getUniformLocation(this.gprog, 'uSize'), uTex: gl.getUniformLocation(this.gprog, 'uTex'), uLight: gl.getUniformLocation(this.gprog, 'uLight'), uRegion: gl.getUniformLocation(this.gprog, 'uRegion'), uFog: gl.getUniformLocation(this.gprog, 'uFog') };
     const meshes = { box: boxMesh(), gable: gableMesh(), cyl: cylMesh(14), cone: coneMesh(10), pyramid: coneMesh(4), dome: domeMesh(), sphere: sphereMesh(), prism3: cylMesh(3) };
     this.meshes = {};
     this.instBuf = gl.createBuffer();
@@ -474,6 +482,10 @@ export class Renderer3D {
     gl.uniformMatrix4fv(this.gu.uVP, false, this.vp);
     gl.uniform2f(this.gu.uSize, this.w, this.h);
     gl.uniform1f(this.gu.uLight, dark ? 0.85 : 1.0);
+    const fullMap = this.noFog;
+    const rg = fullMap ? [-50, -50, this.w + 50, this.h + 50] : this.region;
+    gl.uniform4f(this.gu.uRegion, rg[0], rg[1], rg[2], rg[3]);
+    gl.uniform3f(this.gu.uFog, bg[0], bg[1], bg[2]);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.uniform1i(this.gu.uTex, 0);
@@ -488,6 +500,8 @@ export class Renderer3D {
     gl.uniform3f(this.u.uGround, ...(dark ? [0.28, 0.3, 0.34] : [0.72, 0.68, 0.6]));
     gl.uniform1f(this.u.uAmb, dark ? 0.62 : 0.74);
     gl.uniform1f(this.u.uSunI, dark ? 0.38 : 0.52);
+    gl.uniform4f(this.u.uRegion, rg[0], rg[1], rg[2], rg[3]);
+    gl.uniform3f(this.u.uFog, bg[0], bg[1], bg[2]);
 
     this.buildDynamic(scene, now);
     // flat shadows first (blended, no depth write)

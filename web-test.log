@@ -1,104 +1,138 @@
-commit: 7b445999018c02b28f18ee80807f759434d39d92  ref: polish  run: 46120198741
+commit: 5b8e5e4a4367fb9b1a4bbde48221010f9a2df1f8  ref: polish  run: 46120342793
 -----
 TAP version 13
 # Subtest: catalog lists the 27 maps and the hidden one
 ok 1 - catalog lists the 27 maps and the hidden one
   ---
-  duration_ms: 25.432814
+  duration_ms: 84.699691
   type: 'test'
   ...
 # Subtest: a new game starts empty and clean
 ok 2 - a new game starts empty and clean
   ---
-  duration_ms: 2.945702
+  duration_ms: 2.883331
   type: 'test'
   ...
 # Subtest: same seed gives the same game, different seed a different one
 ok 3 - same seed gives the same game, different seed a different one
   ---
-  duration_ms: 10.428378
+  duration_ms: 17.946243
   type: 'test'
   ...
 # Subtest: drawing a road spends concrete and erasing gives it back
 ok 4 - drawing a road spends concrete and erasing gives it back
   ---
-  duration_ms: 9.190885
+  duration_ms: 13.861806
   type: 'test'
   ...
 # Subtest: bad requests come back as codes, not crashes
 ok 5 - bad requests come back as codes, not crashes
   ---
-  duration_ms: 3.871675
+  duration_ms: 4.827795
   type: 'test'
   ...
 # Subtest: every map plays for two minutes of game time without trapping
 ok 6 - every map plays for two minutes of game time without trapping
   ---
-  duration_ms: 21.337332
+  duration_ms: 36.480695
   type: 'test'
   ...
 # Subtest: the first weekly offer opens after 140 seconds and can be taken
 ok 7 - the first weekly offer opens after 140 seconds and can be taken
   ---
-  duration_ms: 2.866037
+  duration_ms: 3.626973
   type: 'test'
   ...
-# file:///home/runner/work/LittleLanes/LittleLanes/web/js/model.js:71
-#     case ERR.PERMANENT: return 'That road has set and can't be removed';
-#                                                           ^
-# SyntaxError: Unexpected identifier 't'
-#     at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
-#     at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
-#     at \#translate (node:internal/modules/esm/loader:559:20)
-#     at afterLoad (node:internal/modules/esm/loader:612:29)
-#     at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
-#     at \#createModuleJob (node:internal/modules/esm/loader:640:36)
-#     at \#getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
-#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
-# Node.js v22.23.5
-# Subtest: tests-js/model.test.mjs
-not ok 2 - tests-js/model.test.mjs
+# Subtest: five maps are open from the start
+ok 8 - five maps are open from the start
   ---
-  duration_ms: 27.448297
+  duration_ms: 0.639375
   type: 'test'
-  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js/model.test.mjs:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-# file:///home/runner/work/LittleLanes/LittleLanes/web/js/model.js:71
-#     case ERR.PERMANENT: return 'That road has set and can't be removed';
-#                                                           ^
-# SyntaxError: Unexpected identifier 't'
-#     at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
-#     at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
-#     at \#translate (node:internal/modules/esm/loader:559:20)
-#     at afterLoad (node:internal/modules/esm/loader:612:29)
-#     at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
-#     at \#createModuleJob (node:internal/modules/esm/loader:640:36)
-#     at \#getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
-#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
-# Node.js v22.23.5
-# Subtest: tests-js/modes.test.mjs
-not ok 3 - tests-js/modes.test.mjs
+# Subtest: the unlock chain follows the design
+ok 9 - the unlock chain follows the design
   ---
-  duration_ms: 32.646975
+  duration_ms: 0.244129
   type: 'test'
-  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js/modes.test.mjs:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-1..9
-# tests 9
+# Subtest: unlock all opens everything
+ok 10 - unlock all opens everything
+  ---
+  duration_ms: 0.072499
+  type: 'test'
+  ...
+# Subtest: lock text names the requirement
+ok 11 - lock text names the requirement
+  ---
+  duration_ms: 0.154323
+  type: 'test'
+  ...
+# Subtest: dragging across cells moves one step at a time and ends on target
+ok 12 - dragging across cells moves one step at a time and ends on target
+  ---
+  duration_ms: 0.547636
+  type: 'test'
+  ...
+# Subtest: error codes have friendly text
+ok 13 - error codes have friendly text
+  ---
+  duration_ms: 0.130617
+  type: 'test'
+  ...
+# Subtest: clock and pack text
+ok 14 - clock and pack text
+  ---
+  duration_ms: 0.173492
+  type: 'test'
+  ...
+# Subtest: every colour has its own shape, in both themes
+ok 15 - every colour has its own shape, in both themes
+  ---
+  duration_ms: 0.058599
+  type: 'test'
+  ...
+# Subtest: three modes are offered
+ok 16 - three modes are offered
+  ---
+  duration_ms: 2.225488
+  type: 'test'
+  ...
+# Subtest: today's map is the same for everyone and never the hidden one
+ok 17 - today's map is the same for everyone and never the hidden one
+  ---
+  duration_ms: 0.519124
+  type: 'test'
+  ...
+# Subtest: hashing is stable
+ok 18 - hashing is stable
+  ---
+  duration_ms: 0.099751
+  type: 'test'
+  ...
+# Subtest: each colour plays in its own register of one scale
+ok 19 - each colour plays in its own register of one scale
+  ---
+  duration_ms: 0.097507
+  type: 'test'
+  ...
+# Subtest: permanent roads have a message
+ok 20 - permanent roads have a message
+  ---
+  duration_ms: 0.130968
+  type: 'test'
+  ...
+# Subtest: expert roads set and creative has no limits (through the real WASM)
+ok 21 - expert roads set and creative has no limits (through the real WASM)
+  ---
+  duration_ms: 92.950199
+  type: 'test'
+  ...
+1..21
+# tests 21
 # suites 0
-# pass 7
-# fail 2
+# pass 21
+# fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 122.598294
+# duration_ms 237.344873

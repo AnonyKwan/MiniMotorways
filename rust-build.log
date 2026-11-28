@@ -1,4 +1,4 @@
-commit: 0b8fa10c9b36f91225bd03578515af1ba0537474  ref: main  run: 46126107027
+commit: 8060aa4c98d9eb78ba3eaae88e190d8e1008de90  ref: options  run: 46126970440
 -----
 [1m[92m   Compiling[0m little-lanes-core v0.2.0 (/home/runner/work/LittleLanes/LittleLanes)
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1.54s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1.88s

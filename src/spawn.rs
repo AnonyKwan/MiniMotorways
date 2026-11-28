@@ -17,7 +17,8 @@ impl Game {
 
     /// A rectangle of free land with a one-cell margin that holds no building.
     fn area_free(&self, x0: i32, y0: i32, w: i32, h: i32) -> bool {
-        if x0 < 1 || y0 < 1 || x0 + w > self.w - 1 || y0 + h > self.h - 1 {
+        let (rx0, ry0, rx1, ry1) = self.play_region();
+        if x0 < rx0.max(1) || y0 < ry0.max(1) || x0 + w > rx1.min(self.w - 1) || y0 + h > ry1.min(self.h - 1) {
             return false;
         }
         for y in y0..y0 + h {
@@ -65,8 +66,9 @@ impl Game {
         let mut best: Option<(f32, i32, i32)> = None;
         let (cx, cy) = (self.w as f32 / 2.0, self.h as f32 / 2.0);
         for _ in 0..120 {
-            let x = 1 + self.rng.below((self.w - 3).max(1) as u32) as i32;
-            let y = 1 + self.rng.below((self.h - 3).max(1) as u32) as i32;
+            let (rx0, ry0, rx1, ry1) = self.play_region();
+            let x = rx0.max(1) + self.rng.below((rx1 - rx0 - 3).max(1) as u32) as i32;
+            let y = ry0.max(1) + self.rng.below((ry1 - ry0 - 3).max(1) as u32) as i32;
             if !self.area_free(x, y, 2, 2) {
                 continue;
             }
@@ -103,7 +105,7 @@ impl Game {
         self.dests.push(Dest {
             cell,
             group,
-            level: 0,
+            level: if self.mods.all_upgraded { 1 } else { 0 },
             pins: 0,
             assigned: 0,
             pin_timer: FIRST_PIN_DELAY,
@@ -117,7 +119,19 @@ impl Game {
 
     fn place_house(&mut self, group: u8, near: usize) -> bool {
         let (dx, dy) = self.dest_centre(near);
+        let mates: Vec<u32> = self.houses.iter().filter(|h| h.group == group).map(|h| h.cell).collect();
         for _ in 0..120 {
+            // most new homes join a neighbourhood of their own colour (within two tiles)
+            if !mates.is_empty() && self.rng.f32() < 0.65 {
+                let m = mates[self.rng.below(mates.len() as u32) as usize];
+                let (mx, my) = self.xy(m);
+                let x = mx + self.rng.below(5) as i32 - 2;
+                let y = my + self.rng.below(5) as i32 - 2;
+                if self.area_free(x, y, 1, 1) {
+                    return self.add_house(group, x, y);
+                }
+                continue;
+            }
             let angle = self.rng.f32() * std::f32::consts::TAU;
             let far = self.rng.f32() < 0.12;
             let r = if far { 12.0 + self.rng.f32() * 8.0 } else { 4.0 + self.rng.f32().powi(2) * 8.0 };
@@ -126,6 +140,13 @@ impl Game {
             if !self.area_free(x, y, 1, 1) {
                 continue;
             }
+            return self.add_house(group, x, y);
+        }
+        false
+    }
+
+    fn add_house(&mut self, group: u8, x: i32, y: i32) -> bool {
+        {
             let cell = self.cell(x, y);
             let hi = self.houses.len();
             self.bkind[cell as usize] = B_HOUSE;
@@ -151,12 +172,14 @@ impl Game {
             }
             self.houses.push(House { cell, group, cars });
             self.static_ver += 1;
-            return true;
+            true
         }
-        false
     }
 
     fn upgrade_oldest(&mut self, group: u8) {
+        if self.mods.never_upgrade {
+            return;
+        }
         let pick = self
             .dests
             .iter()

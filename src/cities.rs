@@ -45,6 +45,11 @@ pub struct City {
     pub plan: &'static [(f32, u8)],
     pub rules: &'static [UpgradeRule],
     pub osc: &'static [OscDef],
+    /// Endless mode: efficiency needed for each milestone.
+    pub milestones: &'static [u16],
+    /// Visible map height (cells) at the start and after 69 days.
+    pub cam_start: f32,
+    pub cam_end: f32,
 }
 
 pub fn city_count() -> usize {

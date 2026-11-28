@@ -6,7 +6,7 @@ use crate::roads::{E_GAME_OVER, E_NO_OFFER, E_NOTHING, OK};
 
 impl Game {
     pub fn tick_week(&mut self, dt: f32) {
-        if self.offer_open || self.mode == MODE_CREATIVE {
+        if self.offer_open || self.mode == MODE_CREATIVE || self.mode == MODE_ENDLESS {
             return;
         }
         self.week_timer += dt;
@@ -25,6 +25,9 @@ impl Game {
         if r.max_count != 0 && self.taken[ri] >= r.max_count as u32 {
             return 0.0;
         }
+        if self.mods.prevent[r.kind as usize] {
+            return 0.0;
+        }
         let mut w = r.base + r.inc * self.since[r.kind as usize] as f32;
         if !r.rel.is_empty() {
             w *= curve(r.rel, self.available(0) as f32);
@@ -39,7 +42,8 @@ impl Game {
             .filter(|&(_, w)| w > 0.0)
             .collect();
         let mut picks: Vec<usize> = Vec::new();
-        while picks.len() < MAX_UPGRADE_CHOICES && !pool.is_empty() {
+        let choices = self.mods.choices.unwrap_or(MAX_UPGRADE_CHOICES);
+        while picks.len() < choices && !pool.is_empty() {
             let total: f32 = pool.iter().map(|p| p.1).sum();
             let mut roll = self.rng.f32() * total;
             let mut chosen = pool.len() - 1;
@@ -58,15 +62,18 @@ impl Game {
         }
         let mut seen = [false; KINDS];
         let city = self.city;
+        let mods = self.mods.clone();
         self.offers = picks
             .iter()
             .map(|&ri| {
                 let r = &city.rules[ri];
                 seen[r.kind as usize] = true;
-                Pack { kind: r.kind, amount: r.amount as u32, add_concrete: r.add_concrete as u32, rule: ri }
+                let mult = mods.award_mult[r.kind as usize];
+                let add = mods.free_concrete.unwrap_or(r.add_concrete as u32);
+                Pack { kind: r.kind, amount: (r.amount as f32 * mult).round() as u32, add_concrete: if r.kind == 0 { 0 } else { add }, rule: ri }
             })
             .collect();
-        if self.offers.is_empty() {
+        if self.offers.is_empty() && choices > 0 {
             let most = self.city.rules.iter().map(|r| r.add_concrete as u32).max().unwrap_or(20).max(20);
             self.offers.push(Pack { kind: 0, amount: most, add_concrete: 0, rule: usize::MAX });
             seen[0] = true;
@@ -78,8 +85,11 @@ impl Game {
                 self.since[k] += 1;
             }
         }
-        self.offer_open = true;
         self.week += 1;
+        if self.offers.is_empty() {
+            return;
+        }
+        self.offer_open = true;
     }
 
     /// Takes one of the offered packages.

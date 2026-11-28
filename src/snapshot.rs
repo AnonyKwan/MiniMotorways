@@ -86,6 +86,7 @@ impl Game {
             .iter()
             .map(|d| format!("[{},{},{},{}]", d.pins, d.level, num(d.ot), Self::pin_threshold(d.level)))
             .collect();
+        let region = self.play_region();
         let mut dry = Vec::new();
         if self.mode == MODE_EXPERT {
             for c in 0..self.conn.len() as u32 {
@@ -98,7 +99,7 @@ impl Game {
             }
         }
         format!(
-            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{}}}",
+            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{},\"eff\":[{},{},{}],\"region\":[{},{},{},{}],\"stats\":[{},{},{},{},{},{},{},{},{},{}]}}",
             num(self.time),
             num(self.day()),
             self.week,
@@ -112,7 +113,24 @@ impl Game {
             array(&offers),
             array(&cars),
             array(&dests),
-            array(&dry)
+            array(&dry),
+            num(self.eff),
+            num(self.milestone_target()),
+            self.stats.milestones,
+            region.0,
+            region.1,
+            region.2,
+            region.3,
+            self.stats.milestones,
+            self.stats.trees,
+            self.stats.deleted,
+            self.stats.big_pins,
+            self.stats.placed[1],
+            self.stats.placed[2],
+            self.stats.placed[3],
+            self.stats.placed[4],
+            self.stats.placed[5],
+            self.trips_total
         )
     }
 }

@@ -245,6 +245,11 @@ impl Game {
         if self.round[a as usize] || self.round[b as usize] {
             target = ROUNDABOUT_SPEED;
         }
+        if self.mods.bridge_speed != 1.0 && (self.terrain.kind[a as usize] == 1 || self.terrain.kind[b as usize] == 1) {
+            target *= self.mods.bridge_speed;
+        } else if self.mods.tunnel_speed != 1.0 && (self.terrain.kind[a as usize] == 2 || self.terrain.kind[b as usize] == 2) {
+            target *= self.mods.tunnel_speed;
+        }
         if !last && rem < 1.0 {
             let c = self.cars[ci].path[idx + 2];
             target *= self.turn_multiplier(a, b, c);
@@ -298,7 +303,9 @@ impl Game {
             CarState::ToDest => {
                 let di = self.cars[ci].dest;
                 if di != NO_DEST {
+                    let len = self.path_length(ci);
                     self.collect_pin(di);
+                    self.add_efficiency(len);
                 }
                 let c = &mut self.cars[ci];
                 c.state = CarState::Parking;
@@ -318,6 +325,12 @@ impl Game {
                 c.dest = NO_DEST;
             }
         }
+    }
+
+    /// Distance driven on this trip, in cells.
+    fn path_length(&self, ci: usize) -> f32 {
+        let p = &self.cars[ci].path;
+        p.windows(2).map(|w| self.edge_length(w[0], w[1])).sum()
     }
 
     fn begin_return(&mut self, ci: usize) {

@@ -47,6 +47,22 @@ impl Game {
         self.degree(n) >= 3
     }
 
+    /// Concrete used by the connection between two neighbouring cells.
+    pub fn edge_cost(&self, a: u32, b: u32) -> u32 {
+        if self.bkind[a as usize] != B_NONE || self.bkind[b as usize] != B_NONE {
+            return 0;
+        }
+        let diagonal = self.dir_of(a, b).map_or(false, |d| d % 2 == 1);
+        let mut cost = if diagonal { self.mods.diagonal_cost } else { self.mods.straight_cost };
+        let (ka, kb) = (self.terrain.kind[a as usize], self.terrain.kind[b as usize]);
+        if ka == WATER || kb == WATER {
+            cost *= self.mods.bridge_cost;
+        } else if ka == MOUNTAIN || kb == MOUNTAIN {
+            cost *= self.mods.tunnel_cost;
+        }
+        cost
+    }
+
     fn crosses_diagonal(&self, a: u32, d: usize) -> bool {
         if d % 2 == 0 {
             return false;
@@ -129,7 +145,10 @@ impl Game {
         if self.crosses_diagonal(a, d) {
             return E_CROSSING;
         }
-        let cost = if ka != B_NONE || kb != B_NONE { 0 } else { 1 };
+        let cost = self.edge_cost(a, b);
+        if self.mods.trees_solid && (self.terrain.tree[a as usize] || self.terrain.tree[b as usize]) {
+            return E_BLOCKED;
+        }
         if cost > self.owned[0].saturating_sub(self.concrete_used) {
             return E_NO_CONCRETE;
         }
@@ -158,6 +177,9 @@ impl Game {
             self.concrete_used -= cost;
             return err;
         }
+        self.stats.placed[K_BRIDGE as usize] += bridges.saturating_sub(self.bridge_used);
+        self.stats.placed[K_TUNNEL as usize] += tunnels.saturating_sub(self.tunnel_used);
+        self.stats.trees += tree_a as u32 + tree_b as u32;
         self.bridge_used = bridges;
         self.tunnel_used = tunnels;
         self.touched();
@@ -182,7 +204,7 @@ impl Game {
         let od = (d + 4) % 8;
         self.conn[a as usize] &= !(1 << d);
         self.conn[b as usize] &= !(1 << od);
-        let cost = if self.bkind[a as usize] != B_NONE || self.bkind[b as usize] != B_NONE { 0 } else { 1 };
+        let cost = self.edge_cost(a, b);
         self.concrete_used = self.concrete_used.saturating_sub(cost);
         self.drop_orphan_junction_parts(a);
         self.drop_orphan_junction_parts(b);
@@ -250,6 +272,7 @@ impl Game {
             return E_NO_UPGRADE;
         }
         self.motorways.push((a, b));
+        self.stats.placed[K_MOTORWAY as usize] += 1;
         self.touched();
         OK
     }
@@ -259,6 +282,7 @@ impl Game {
             return E_NOTHING;
         }
         self.motorways.remove(i);
+        self.stats.deleted += 1;
         self.touched();
         OK
     }
@@ -278,6 +302,7 @@ impl Game {
             } else {
                 self.round[ci] = false;
             }
+            self.stats.deleted += 1;
             self.touched();
             return OK;
         }
@@ -293,6 +318,7 @@ impl Game {
         } else {
             self.round[ci] = true;
         }
+        self.stats.placed[kind as usize] += 1;
         self.touched();
         OK
     }

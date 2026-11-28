@@ -23,6 +23,11 @@ for r in rows("weekly_upgrades.csv"):
     rules[r["bundle"]].append((KIND[r["type"]], int(r["amount"]), int(r["additionalConcrete"]),
         float(r["baseWeight"]), float(r["weightIncreaseWhenNotOffered"]), int(r["maxPackageCount"]),
         int(r["startingWeek"]), int(r["lastWeek"]), cur))
+miles = {}
+cams = {}
+for r in rows("city_design_summary.csv"):
+    miles[r["bundle"]] = [int(float(x)) for x in r["efficiencyMilestones"].split(";") if x.strip()]
+    cams[r["bundle"]] = (float(r["cameraStart"]), float(r["cameraEnd"]))
 osc = collections.defaultdict(dict)
 for r in rows("demand_oscillation.csv"):
     osc[r["bundle"]][int(r["group"])] = (float(r["baseDemand"]), float(r["burstDemand"]), float(r["eccentricity"]), float(r["periodDays"]))
@@ -47,6 +52,7 @@ for c in cities:
     for g in range(groups):
         o = osc[b].get(g, (0.8, 1.5, 12.0, 14.0))
         od.append("OscDef { base: %s, burst: %s, ecc: %s, period: %s }" % tuple(f(x) for x in o))
+    L.append(f"const {ident}_MILES: &[u16] = &[{', '.join(str(m) for m in miles.get(b, [60, 100, 135]))}];")
     L.append(f"const {ident}_OSC: &[OscDef] = &[{', '.join(od)}];")
     L.append("")
 L.append("pub const CITIES: &[City] = &[")
@@ -54,7 +60,7 @@ for c in cities:
     b = c["bundle"]; ident = b.upper()
     if not start[b] or int(c["groups"]) == 0: continue
     wa, ha = [float(x) for x in c["area"].split("x")]
-    L.append(f'    City {{ id: "{b}", name: "{c["city"]}", w: {math.ceil(wa)}, h: {math.ceil(ha)}, groups: {c["groups"]}, water: {c["water"]}, mountain: {c["mountain"]}, trees: {c["trees"]}, start: {ident}_START, plan: {ident}_PLAN, rules: {ident}_RULES, osc: {ident}_OSC }},')
+    L.append(f'    City {{ id: "{b}", name: "{c["city"]}", w: {math.ceil(wa)}, h: {math.ceil(ha)}, groups: {c["groups"]}, water: {c["water"]}, mountain: {c["mountain"]}, trees: {c["trees"]}, start: {ident}_START, plan: {ident}_PLAN, rules: {ident}_RULES, osc: {ident}_OSC, milestones: {ident}_MILES, cam_start: {cams.get(b, (10.0, 20.0))[0]}, cam_end: {cams.get(b, (10.0, 20.0))[1]} }},')
 L.append("];")
 open(out, "w", encoding="utf-8").write("\n".join(L) + "\n")
 print(len(names), "cities")

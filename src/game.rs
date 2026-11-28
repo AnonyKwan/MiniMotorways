@@ -12,6 +12,7 @@ pub const DIRS: [(i32, i32); 8] = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1
 pub const MODE_CLASSIC: u8 = 0;
 pub const MODE_EXPERT: u8 = 1;
 pub const MODE_CREATIVE: u8 = 2;
+pub const MODE_ENDLESS: u8 = 3;
 
 pub const B_NONE: u8 = 0;
 pub const B_HOUSE: u8 = 1;
@@ -86,11 +87,68 @@ pub struct PendingDest {
     pub fails: u32,
 }
 
+/// Challenge modifiers (doc 09.3). The default changes nothing.
+#[derive(Clone, Debug)]
+pub struct Mods {
+    pub start: Vec<(u8, u32)>,
+    pub prevent: [bool; KINDS],
+    pub award_mult: [f32; KINDS],
+    pub choices: Option<usize>,
+    pub free_concrete: Option<u32>,
+    pub never_upgrade: bool,
+    pub all_upgraded: bool,
+    pub unlimited: [bool; KINDS],
+    pub trees_solid: bool,
+    pub straight_cost: u32,
+    pub diagonal_cost: u32,
+    pub bridge_cost: u32,
+    pub tunnel_cost: u32,
+    pub demand: [f32; 6],
+    pub bridge_speed: f32,
+    pub tunnel_speed: f32,
+}
+
+impl Default for Mods {
+    fn default() -> Self {
+        Mods {
+            start: Vec::new(),
+            prevent: [false; KINDS],
+            award_mult: [1.0; KINDS],
+            choices: None,
+            free_concrete: None,
+            never_upgrade: false,
+            all_upgraded: false,
+            unlimited: [false; KINDS],
+            trees_solid: false,
+            straight_cost: 1,
+            diagonal_cost: 1,
+            bridge_cost: 1,
+            tunnel_cost: 1,
+            demand: [1.0; 6],
+            bridge_speed: 1.0,
+            tunnel_speed: 1.0,
+        }
+    }
+}
+
+/// Counters used by achievements.
+#[derive(Clone, Debug, Default)]
+pub struct Stats {
+    pub trees: u32,
+    pub placed: [u32; KINDS],
+    pub deleted: u32,
+    pub big_pins: u32,
+    pub milestones: u32,
+}
+
 pub struct Game {
     pub city_idx: usize,
     pub city: &'static City,
     pub seed: u32,
     pub mode: u8,
+    pub mods: Mods,
+    pub stats: Stats,
+    pub eff: f32,
     pub w: i32,
     pub h: i32,
     pub rng: Rng,
@@ -142,6 +200,10 @@ impl Game {
     }
 
     pub fn with_mode(city_idx: usize, seed: u32, mode: u8) -> Game {
+        Self::with_mods(city_idx, seed, mode, Mods::default())
+    }
+
+    pub fn with_mods(city_idx: usize, seed: u32, mode: u8, mods: Mods) -> Game {
         let city_idx = city_idx.min(CITIES.len() - 1);
         let city: &'static City = &CITIES[city_idx];
         let mut rng = Rng::new(((city_idx as u64) << 32) ^ seed as u64);
@@ -159,6 +221,14 @@ impl Game {
                 extra_demand: 0.0,
             })
             .collect();
+        for &(kind, n) in &mods.start {
+            owned[kind as usize] = n;
+        }
+        for k in 0..KINDS {
+            if mods.unlimited[k] {
+                owned[k] = 9999;
+            }
+        }
         if mode == MODE_CREATIVE {
             owned = [9999; KINDS];
         }
@@ -167,6 +237,9 @@ impl Game {
             city,
             seed,
             mode,
+            mods,
+            stats: Stats::default(),
+            eff: 0.0,
             w: city.w,
             h: city.h,
             rng,
@@ -277,6 +350,9 @@ impl Game {
         if self.mode == MODE_EXPERT {
             self.tick_permanence(dt);
         }
+        if self.mode == MODE_ENDLESS {
+            self.tick_efficiency(dt);
+        }
     }
 
     // ---- demand ----
@@ -298,7 +374,11 @@ impl Game {
     pub fn pin_interval(&self, di: usize) -> f32 {
         let d = &self.dests[di];
         let osc = self.osc_value(d.group as usize).max(0.1);
-        SEC_PER_DAY / (AVERAGE_CARS_PER_DAY * Self::demand_mult(d.level) * osc)
+        let mut interval = SEC_PER_DAY / (AVERAGE_CARS_PER_DAY * Self::demand_mult(d.level) * osc * self.mods.demand[(d.group as usize).min(5)].max(0.05));
+        if self.mode == MODE_ENDLESS {
+            interval /= ENDLESS_DEMAND_MULT;
+        }
+        interval
     }
 
     pub fn pin_threshold(level: u8) -> u32 {
@@ -355,7 +435,7 @@ impl Game {
     }
 
     fn tick_overcrowd(&mut self, dt: f32) {
-        if self.mode == MODE_CREATIVE {
+        if self.mode == MODE_CREATIVE || self.mode == MODE_ENDLESS {
             return;
         }
         for di in 0..self.dests.len() {
@@ -388,8 +468,62 @@ impl Game {
         d.assigned = d.assigned.saturating_sub(1);
         d.ospeed *= 0.02;
         let cut = (d.ot * PCT_REDUCE_ON_ARRIVAL).clamp(0.0, MAX_REDUCE_ON_ARRIVAL);
+        let was_big = d.ot >= 20.0;
         d.ot = (d.ot - cut).max(0.0);
+        if was_big && d.pins <= Self::pin_threshold(d.level) {
+            self.stats.big_pins += 1;
+        }
         self.score += 1;
         self.trips_total += 1;
+    }
+}
+
+impl Game {
+    /// Efficiency needed for the current Endless milestone.
+    pub fn milestone_target(&self) -> f32 {
+        let m = self.city.milestones;
+        let i = self.stats.milestones as usize;
+        if i < m.len() {
+            m[i] as f32
+        } else {
+            m[m.len() - 1] as f32 + MILESTONE_INCREASE_AFTER_TABLE * (i + 1 - m.len()) as f32
+        }
+    }
+
+    /// A delivered pin adds efficiency by how far the car drove.
+    pub fn add_efficiency(&mut self, path_len: f32) {
+        if self.mode != MODE_ENDLESS {
+            return;
+        }
+        self.eff += curve(PATH_TO_EFFICIENCY, path_len);
+        let target = self.milestone_target();
+        if self.eff >= target {
+            self.eff = 0.0;
+            self.stats.milestones += 1;
+            if !self.offer_open {
+                self.make_offer();
+            }
+        }
+    }
+
+    pub fn tick_efficiency(&mut self, dt: f32) {
+        let target = self.milestone_target().max(1.0);
+        let k = curve(EFFICIENCY_LOSS_CURVE, (self.eff / target).min(1.0));
+        self.eff = (self.eff - target * EFFICIENCY_LOSS_PER_SECOND * k * dt).max(0.0);
+    }
+
+    /// The part of the map in play: it starts small and grows around the middle until day 69.
+    /// Returns (x0, y0, x1, y1) in cells, x1 and y1 exclusive.
+    pub fn play_region(&self) -> (i32, i32, i32, i32) {
+        let p = (self.day() / CAMERA_DAYS).clamp(0.0, 1.0);
+        let full_h = self.h as f32;
+        let h = (self.city.cam_start + (self.city.cam_end - self.city.cam_start) * p).clamp(8.0, full_h);
+        let w = (h * self.w as f32 / full_h).clamp(8.0, self.w as f32);
+        let (cx, cy) = (self.w as f32 / 2.0, self.h as f32 / 2.0);
+        let x0 = (cx - w / 2.0).floor().max(0.0) as i32;
+        let y0 = (cy - h / 2.0).floor().max(0.0) as i32;
+        let x1 = ((cx + w / 2.0).ceil() as i32).min(self.w);
+        let y1 = ((cy + h / 2.0).ceil() as i32).min(self.h);
+        (x0, y0, x1, y1)
     }
 }

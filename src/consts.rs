@@ -65,6 +65,16 @@ pub const MAX_UPGRADE_CHOICES: usize = 2;
 pub const PERMANENCE_SECONDS: f32 = 40.0;
 pub const PERMANENCE_LOCK_FRACTION: f32 = 0.25;
 
+// ---- Endless mode (doc 01.4, 04.13) ----
+pub const ENDLESS_DEMAND_MULT: f32 = 0.5;
+pub const MILESTONE_INCREASE_AFTER_TABLE: f32 = 80.0;
+pub const EFFICIENCY_LOSS_PER_SECOND: f32 = 0.05;
+pub const PATH_TO_EFFICIENCY: &[(f32, f32)] = &[(0.0, 0.0), (100.0, 75.0)];
+pub const EFFICIENCY_LOSS_CURVE: &[(f32, f32)] = &[(0.0, 0.5), (1.0, 1.0)];
+
+// ---- world growth (doc 01.3): the camera pulls out until day 69 ----
+pub const CAMERA_DAYS: f32 = 69.0;
+
 // ---- curves (doc 05.12) ----
 pub const HOUSE_DISTANCE_CURVE: &[(f32, f32)] = &[
     (0.0, 1.0),

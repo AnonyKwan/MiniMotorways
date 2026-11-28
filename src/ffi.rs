@@ -4,11 +4,12 @@
 //! call a function that returns a length, then read that many bytes at `ll_out_ptr()`.
 #![allow(static_mut_refs)]
 use crate::cities::CITIES;
-use crate::game::Game;
+use crate::game::{Game, Mods};
 use crate::roads::{E_BOUNDS, E_NOTHING};
 use crate::snapshot::catalog;
 
 static mut GAME: Option<Game> = None;
+static mut MODS: Option<Mods> = None;
 static mut OUT: Vec<u8> = Vec::new();
 
 fn game() -> Option<&'static mut Game> {
@@ -48,11 +49,59 @@ pub extern "C" fn ll_new(city: u32, seed: u32) -> u32 {
     1
 }
 
+/// Clears the pending challenge modifiers.
+#[no_mangle]
+pub extern "C" fn ll_mod_reset() {
+    unsafe {
+        MODS = Some(Mods::default());
+    }
+}
+
+/// Sets one challenge modifier for the next game. `key` follows doc 09.3; `a` is an upgrade
+/// kind or group, `b` a count or a multiplier scaled by 100.
+#[no_mangle]
+pub extern "C" fn ll_mod(key: u32, a: i32, b: i32) {
+    unsafe {
+        let m = MODS.get_or_insert_with(Mods::default);
+        let k = (a.max(0) as usize).min(5);
+        match key {
+            0 => m.start.push((k as u8, b.max(0) as u32)),
+            1 => m.prevent[k] = true,
+            3 => m.award_mult[k] = b as f32 / 100.0,
+            4 => m.choices = Some(b.max(0) as usize),
+            5 => m.free_concrete = Some(b.max(0) as u32),
+            7 => m.demand[k] = b as f32 / 100.0,
+            9 => m.never_upgrade = true,
+            10 => m.all_upgraded = true,
+            17 => m.unlimited[k] = true,
+            18 => m.trees_solid = true,
+            21 => {
+                if a == 1 {
+                    m.bridge_speed = b as f32 / 100.0;
+                } else {
+                    m.tunnel_speed = b as f32 / 100.0;
+                }
+            }
+            22 => m.straight_cost = b.max(0) as u32,
+            23 => m.diagonal_cost = b.max(0) as u32,
+            24 => {
+                if a == 1 {
+                    m.bridge_cost = b.max(0) as u32;
+                } else {
+                    m.tunnel_cost = b.max(0) as u32;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Starts a new game in a mode: 0 classic, 1 expert, 2 creative.
 #[no_mangle]
 pub extern "C" fn ll_new_mode(city: u32, seed: u32, mode: u32) -> u32 {
     unsafe {
-        GAME = Some(Game::with_mode(city as usize, seed, mode as u8));
+        let mods = MODS.take().unwrap_or_default();
+        GAME = Some(Game::with_mods(city as usize, seed, mode as u8, mods));
     }
     1
 }

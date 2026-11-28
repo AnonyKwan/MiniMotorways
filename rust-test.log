@@ -1,7 +1,7 @@
-commit: 043fbfba18b408a1a882cb01b56fdffae4497631  ref: rebuild  run: 46118441902
+commit: 043fbfba18b408a1a882cb01b56fdffae4497631  ref: main  run: 46118988066
 -----
 [1m[92m   Compiling[0m little-lanes-core v0.2.0 (/home/runner/work/LittleLanes/LittleLanes)
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 8.22s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 12.66s
 [1m[92m     Running[0m unittests src/lib.rs (target/release/build/little-lanes-core/ab003fde1f472e37/out/little_lanes_core-ab003fde1f472e37)
 
 running 0 tests
@@ -12,17 +12,17 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 12 tests
 test city_catalog_matches_design_tables ... ok
+test arriving_car_scores_and_shortens_the_timer ... ok
 test clock_matches_design ... ok
 test every_city_has_a_plan_and_an_upgrade_pool ... ok
 test group_destination_count_curve_matches_design ... ok
-test arriving_car_scores_and_shortens_the_timer ... ok
+test normal_destination_makes_a_pin_about_every_16_seconds ... ok
+test overcrowd_speed_curve_matches_design ... ok
 test first_pin_arrives_after_four_seconds ... ok
 test house_supply_curve_matches_design ... ok
-test overcrowd_speed_curve_matches_design ... ok
-test pin_limits_match_design ... ok
-test normal_destination_makes_a_pin_about_every_16_seconds ... ok
 test timer_falls_back_to_the_grace_mark_when_pins_clear ... ok
 test overcrowding_ends_the_game_after_about_fifty_seconds ... ok
+test pin_limits_match_design ... ok
 
 test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
@@ -30,36 +30,36 @@ test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 
 running 13 tests
 test a_road_connection_costs_one_concrete_and_removal_refunds_it ... ok
-test duplicate_and_far_connections_are_refused ... ok
-test diagonal_roads_cost_the_same_as_straight_ones ... ok
 test crossing_diagonals_are_refused ... ok
+test diagonal_roads_cost_the_same_as_straight_ones ... ok
+test duplicate_and_far_connections_are_refused ... ok
 test lights_and_roundabouts_only_go_on_junctions ... ok
 test motorways_need_two_cells_and_an_upgrade ... ok
 test mountains_need_a_tunnel ... ok
 test running_out_of_concrete_stops_building ... ok
 test the_first_offer_comes_after_one_week_with_two_choices ... ok
-test the_week_clock_waits_while_an_offer_is_open ... ok
 test water_needs_a_bridge_and_one_bridge_covers_a_whole_crossing ... ok
+test the_week_clock_waits_while_an_offer_is_open ... ok
 test rules_respect_their_start_week ... ok
 test motorway_packages_get_more_likely_the_longer_they_are_missing ... ok
 
-test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
 
 [1m[92m     Running[0m tests/simulation.rs (target/release/build/little-lanes-core/dc907ad8ff793837/out/simulation-dc907ad8ff793837)
 
 running 10 tests
 test catalog_lists_every_city_once ... ok
-test an_unconnected_town_gets_overcrowded ... ok
 test a_connected_house_delivers_pins_and_scores ... ok
-test erasing_a_road_under_a_car_does_not_lose_it ... ok
 test buildings_never_overlap_water_roads_or_each_other ... ok
+test an_unconnected_town_gets_overcrowded ... ok
 test houses_appear_for_each_destination_colour ... ok
+test erasing_a_road_under_a_car_does_not_lose_it ... ok
 test no_two_cars_share_a_single_lane_junction ... ok
 test snapshot_is_always_valid_numbers ... ok
 test the_world_is_deterministic ... ok
 test every_city_runs_for_three_game_weeks_without_trouble ... ok
 
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
 
 [1m[92m   Doc-tests[0m little_lanes_core
 

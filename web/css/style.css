@@ -77,6 +77,23 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .blurb { margin: 0 !important; font-size: 0.9rem; }
 #btn-sound.off { opacity: 0.5; text-decoration: line-through; }
 
+.sheet.wide { max-width: 720px; max-height: 86vh; display: flex; flex-direction: column; }
+.scroll { overflow-y: auto; margin: 4px -8px; padding: 0 8px; flex: 1; touch-action: pan-y; }
+.scroll h3 { margin: 16px 0 6px; font-size: 0.95rem; color: var(--muted); }
+.ach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ach { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; opacity: 0.6; }
+.ach.on { opacity: 1; border-color: var(--accent); }
+.ach span, .ch span, .ch em { color: var(--muted); font-size: 0.85rem; font-style: normal; }
+.ch { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px; }
+.ch.locked { opacity: 0.55; }
+.ch button { justify-self: start; border-radius: 12px; border: 0; padding: 8px 16px; }
+.muted { color: var(--muted); }
+.coach { position: fixed; left: 50%; top: calc(72px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: min(560px, calc(100vw - 24px)); background: var(--ink); color: var(--panel); border-radius: 18px; padding: 12px 16px; display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow); z-index: 5; }
+.coach p { margin: 0; }
+body.photo #hud, body.photo #tools, body.photo .coach { display: none !important; }
+.photobar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 10px; z-index: 6; }
+.photobar button { border: 0; border-radius: 999px; padding: 10px 18px; background: var(--panel); box-shadow: var(--shadow); }
+
 /* overlays */
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20, 20, 24, 0.35); padding: 16px; }
 .sheet { background: var(--panel); border-radius: 24px; padding: 24px; max-width: 560px; width: 100%; box-shadow: var(--shadow); }

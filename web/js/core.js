@@ -54,6 +54,15 @@ export class Core {
   statics() { return this.readJson(this.x.ll_statics()); }
   terrain() { return this.bytes(this.x.ll_terrain()); }
 
+  /** Challenge modifiers for the NEXT game: [[key, a, b], ...] (see src/ffi.rs). */
+  setMods(mods) {
+    this.x.ll_mod_reset();
+    for (const [k, a, b] of mods || []) this.x.ll_mod(k, a, b);
+  }
+  beginErase() { this.x.ll_begin_erase(); }
+  undo() { return this.x.ll_undo(); }
+  continueEndless() { return this.x.ll_continue_endless(); }
+
   addRoad(a, b) { return this.x.ll_add_road(a, b); }
   removeRoad(a, b) { return this.x.ll_remove_road(a, b); }
   eraseCell(c) { return this.x.ll_erase_cell(c); }

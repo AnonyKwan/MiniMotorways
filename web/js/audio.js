@@ -29,6 +29,26 @@ export class Sound {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
 
+  /** Quiet evolving drone; `p` is the worst destination's timer share (0..1). */
+  bed(p, nowSeconds) {
+    if (!this.ctx || this.muted) return;
+    if (!this.bedNodes) {
+      const mk = (f, type, g) => {
+        const o = this.ctx.createOscillator(); const gn = this.ctx.createGain();
+        o.type = type; o.frequency.value = f; gn.gain.value = 0;
+        o.connect(gn); gn.connect(this.master); o.start();
+        return { o, gn };
+      };
+      this.bedNodes = { a: mk(110, 'sine'), b: mk(164.8, 'sine'), low: mk(55, 'sawtooth') };
+    }
+    const t = this.ctx.currentTime;
+    const wob = 0.5 + 0.5 * Math.sin(nowSeconds * 0.21);
+    this.bedNodes.a.gn.gain.setTargetAtTime(0.012 + 0.01 * wob, t, 0.8);
+    this.bedNodes.b.gn.gain.setTargetAtTime(0.008 + 0.008 * (1 - wob), t, 0.8);
+    // below the game over line the warning drone fades in
+    this.bedNodes.low.gn.gain.setTargetAtTime(p > 0.8 ? 0.03 * Math.min(1, (p - 0.8) / 0.2) : 0, t, 0.4);
+  }
+
   setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.5; }
 
   tone(freq, dur, type, gain, when = 0, detune = 0) {
@@ -55,10 +75,13 @@ export class Sound {
   click() { this.tone(520, 0.08, 'triangle', 0.04); }
 
   /** A destination is close to overflowing. Rate-limited. */
-  warn(nowSeconds) {
-    if (nowSeconds - this.lastWarn < 3.5) return;
+  warn(nowSeconds, pressure = 0.5) {
+    const gap = 3.6 - 2.6 * Math.min(1, pressure);
+    if (nowSeconds - this.lastWarn < gap) return;
     this.lastWarn = nowSeconds;
-    this.tone(146, 0.5, 'sawtooth', 0.035, 0, -14);
-    this.tone(146, 0.5, 'sawtooth', 0.035, 0, 14);
+    const detune = 14 + 40 * Math.min(1, pressure); // the horn goes more out of tune as it gets worse
+    const gain = 0.03 + 0.05 * Math.min(1, pressure);
+    this.tone(146, 0.5, 'sawtooth', gain, 0, -detune);
+    this.tone(146, 0.5, 'sawtooth', gain, 0, detune);
   }
 }

@@ -407,6 +407,21 @@ export function drawScene(ctx, W, H, view, scene, theme, themeName, time, now = 
     ctx.restore();
   }
 
+  // the part of the map that has not opened yet fades into the paper
+  const rg = scene.region;
+  if (rg) {
+    ctx.fillStyle = theme.page;
+    ctx.globalAlpha = 0.78;
+    ctx.fillRect(0, 0, w * s, rg[1] * s);
+    ctx.fillRect(0, rg[3] * s, w * s, (h - rg[3]) * s);
+    ctx.fillRect(0, rg[1] * s, rg[0] * s, (rg[3] - rg[1]) * s);
+    ctx.fillRect(rg[2] * s, rg[1] * s, (w - rg[2]) * s, (rg[3] - rg[1]) * s);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = theme.deckEdge; ctx.lineWidth = 2; ctx.setLineDash([s * 0.3, s * 0.2]);
+    ctx.strokeRect(rg[0] * s, rg[1] * s, (rg[2] - rg[0]) * s, (rg[3] - rg[1]) * s);
+    ctx.setLineDash([]);
+  }
+
   // ---- interaction hints ----
   const hv = scene.hover;
   if (hv) {

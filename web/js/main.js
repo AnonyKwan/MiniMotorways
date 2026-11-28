@@ -5,6 +5,7 @@ import {
 } from './model.js';
 import { THEMES, buildTerrainLayer, drawScene } from './render.js';
 import { loadBest, saveBest, loadPref, savePref } from './storage.js';
+import { initFeatures } from './features.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('stage');
@@ -34,6 +35,9 @@ const app = {
   helpSeen: loadPref('helpSeen', false),
   view: { zoom: 1, panX: 0, panY: 0 },
   hover: null,
+  cam: null,
+  photo: false,
+  canvas,
   W: 0, H: 0, dpr: 1,
 };
 window.__ll = app; // handy for tests and debugging
@@ -53,6 +57,7 @@ async function boot() {
   buildTools();
   buildModes();
   buildMenu();
+  features = initFeatures(app, { startGame, toast, setSpeed, afterEdit });
   app.screen = 'menu';
   requestAnimationFrame(frame);
   const want = params.get('city');
@@ -113,6 +118,7 @@ function buildMenu() {
 }
 
 function showMenu() {
+  if (app.screen === 'game' && features) features.onLeave();
   app.screen = 'menu';
   $('menu').hidden = false;
   $('hud').hidden = true;
@@ -123,7 +129,10 @@ function showMenu() {
 }
 
 // ---------- game ----------
-function startGame(cityIndex, seed, mode = app.mode) {
+let features = null;
+function startGame(cityIndex, seed, mode = app.mode, opts = {}) {
+  if (app.screen === 'game' && features) features.onLeave();
+  app.core.setMods(opts.mods || []);
   app.cityIndex = cityIndex;
   app.playMode = mode;
   app.born = new Map();
@@ -138,6 +147,7 @@ function startGame(cityIndex, seed, mode = app.mode) {
   app.staticsVer = app.snap.ver;
   app.over = false;
   app.view = { zoom: 1, panX: 0, panY: 0 };
+  app.cam = null;
   app.screen = 'game';
   setSpeed(1);
   setTool('road');
@@ -146,8 +156,9 @@ function startGame(cityIndex, seed, mode = app.mode) {
   $('tools').hidden = false;
   $('offer').hidden = true;
   $('over').hidden = true;
-  $('hud-city').textContent = mode ? `${c.name} · ${MODES[mode].name}` : c.name;
-  if (!app.helpSeen) { $('help').hidden = false; app.helpSeen = true; savePref('helpSeen', true); setSpeed(0); }
+  $('hud-city').textContent = (opts.challenge ? `${opts.challenge.title} · ` : '') + (mode ? `${c.name} · ${MODES[mode].name}` : c.name);
+  if (features) features.onStart(opts);
+  if (!app.helpSeen && !opts.tutorial) { $('help').hidden = false; app.helpSeen = true; savePref('helpSeen', true); setSpeed(0); }
   updateTools(true);
 }
 
@@ -168,6 +179,7 @@ function frame(ts) {
     app.snap = app.core.snapshot();
     if (app.snap.ver !== app.staticsVer) refreshStatics();
     soundCues();
+    if (features) features.tick(app.snap);
     syncUi();
     render(ts / 1000);
     acc += dt;
@@ -182,7 +194,9 @@ function soundCues() {
     app.sound.deliver((s.score + app.cityIndex) % groups);
   }
   app.lastScore = s.score;
-  if ((s.dests || []).some((d) => d[2] > 30)) app.sound.warn(s.t);
+  const pressure = Math.max(0, ...(s.dests || []).map((d) => d[2] / 50));
+  app.sound.bed(pressure, s.t);
+  if (pressure > 0.6) app.sound.warn(s.t, (pressure - 0.6) / 0.4);
 }
 
 function refreshStatics() {
@@ -192,6 +206,7 @@ function refreshStatics() {
 
 function render(t) {
   const { W, H } = app;
+  regionBox();
   if (!app.layer) {
     app.layer = buildTerrainLayer(app.statics.w, app.statics.h, app.terrain, THEMES[app.themeName], (w, h) => {
       const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv;
@@ -201,7 +216,7 @@ function render(t) {
   const view = viewTransform();
   drawScene(ctx, W, H, view, {
     w: app.statics.w, h: app.statics.h, terrain: app.terrain, statics: app.statics, snap: app.snap,
-    layer: app.layer, hover: app.hover, born: app.born,
+    layer: app.layer, hover: app.hover, born: app.born, region: app.photo || app.playMode === 3 ? null : app.snap.region,
   }, THEMES[app.themeName], app.themeName, app.snap.t, performance.now() / 1000);
 }
 
@@ -215,11 +230,22 @@ function baseScale() {
   const top = 64, bottom = 96;
   return Math.max(8, Math.min((app.W - 16) / w, (app.H - top - bottom) / h));
 }
+function regionBox() {
+  const full = [0, 0, app.statics.w, app.statics.h];
+  const r = app.photo || app.playMode === 3 || !app.snap || !app.snap.region ? full : app.snap.region;
+  // ease toward the target so the camera pulls out smoothly as the town grows
+  if (!app.cam) app.cam = [...r];
+  else for (let i = 0; i < 4; i++) app.cam[i] += (r[i] - app.cam[i]) * 0.04;
+  return app.cam;
+}
 function viewTransform() {
-  const w = app.statics.w, h = app.statics.h;
-  const scale = baseScale() * app.view.zoom;
-  const ox = (app.W - w * scale) / 2 + app.view.panX;
-  const oy = 64 + (app.H - 64 - 96 - h * scale) / 2 + app.view.panY;
+  const [x0, y0, x1, y1] = app.cam || [0, 0, app.statics.w, app.statics.h];
+  const rw = Math.max(4, x1 - x0), rh = Math.max(4, y1 - y0);
+  const top = 64, bottom = 96;
+  const fit = Math.max(8, Math.min((app.W - 16) / rw, (app.H - top - bottom) / rh));
+  const scale = fit * app.view.zoom;
+  const ox = (app.W - rw * scale) / 2 - x0 * scale + app.view.panX;
+  const oy = top + (app.H - top - bottom - rh * scale) / 2 - y0 * scale + app.view.panY;
   return { ox, oy, scale };
 }
 function cellAt(px, py) {
@@ -287,7 +313,7 @@ function updateTools(force) {
   document.querySelectorAll('#tools .tool').forEach((el) => {
     const kind = Number(el.dataset.kind);
     const cnt = el.querySelector('.count');
-    if (Number.isNaN(kind)) { cnt.hidden = true; return; }
+    if (!cnt || Number.isNaN(kind)) { if (cnt) cnt.hidden = true; return; }
     const [owned, used] = up[kind];
     const free = owned - used;
     const label = owned >= 1000 ? '∞' : String(free);
@@ -299,13 +325,13 @@ function updateTools(force) {
 }
 
 let toastTimer = 0;
-function toast(msg) {
+function toast(msg, ms = 1600) {
   if (!msg) return;
   const el = $('toast');
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 function showOffer() {
@@ -336,11 +362,12 @@ function gameOver() {
   const trips = app.snap.score;
   const c = app.core.cities[app.cityIndex];
   const prev = app.best[c.id] || 0;
-  if (app.playMode === 0 && trips > prev) { app.best[c.id] = trips; saveBest(app.best); }
+  if (app.playMode === 0 && !app.challenge && trips > prev) { app.best[c.id] = trips; saveBest(app.best); }
   $('over-text').textContent = `${c.name}: ${trips} trips delivered` + (trips > prev ? ' — a new best!' : ` (best ${prev}).`);
   $('offer').hidden = true;
   $('over').hidden = false;
   setSpeed(0);
+  if (features) features.onGameOver();
 }
 
 // ---------- input ----------
@@ -377,7 +404,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (cell == null) return;
   if (mode === 'road' || mode === 'erase') {
     drawing = { mode, last: cell };
-    if (mode === 'erase') afterEdit(app.core.eraseCell(cell));
+    if (mode === 'erase') { app.core.beginErase(); afterEdit(app.core.eraseCell(cell)); if (features) features.markErased(); }
   } else if (mode === 'light') {
     afterEdit(app.core.toggleLight(cell), true);
   } else if (mode === 'round') {

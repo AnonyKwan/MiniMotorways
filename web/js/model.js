@@ -112,6 +112,7 @@ export const MODES = [
   { id: 0, name: 'Classic', blurb: 'The standard game. Roads can be changed any time.' },
   { id: 1, name: 'Expert', blurb: 'Roads set after 40 seconds and then stay for good.' },
   { id: 2, name: 'Creative', blurb: 'Every tool, no limits, no game over. Just build.' },
+  { id: 3, name: 'Endless', blurb: 'No game over. Deliver far to earn efficiency and a new tool at each milestone.' },
 ];
 
 /** Stable 32-bit hash of a string (FNV-1a). */

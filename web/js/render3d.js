@@ -134,8 +134,8 @@ void main() {
   vec3 hemi = mix(uGround, uSky, n.y * 0.5 + 0.5);
   float ao = mix(0.78, 1.0, clamp(vY * 1.6, 0.0, 1.0));
   vec3 c = vCol.rgb * (hemi * uAmb + vec3(1.0, 0.97, 0.9) * d * uSunI) * ao;
-  float d = min(min(vXZ.x - uRegion.x, uRegion.z - vXZ.x), min(vXZ.y - uRegion.y, uRegion.w - vXZ.y));
-  c = mix(mix(c, uFog, 0.78), c, smoothstep(-0.5, 0.5, d));
+  float fd = min(min(vXZ.x - uRegion.x, uRegion.z - vXZ.x), min(vXZ.y - uRegion.y, uRegion.w - vXZ.y));
+  c = mix(mix(c, uFog, 0.78), c, smoothstep(-0.5, 0.5, fd));
   o = vec4(c, vCol.a);
 }`;
 const GVS = `#version 300 es

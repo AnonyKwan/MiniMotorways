@@ -38,6 +38,14 @@ impl Game {
         true
     }
 
+    /// The ferry terminal's spot (plus a margin) is kept free for it.
+    fn overlaps_terminal(&self, x0: i32, y0: i32, w: i32, h: i32) -> bool {
+        match self.terrain.terminal {
+            Some((tx, ty)) if !self.dests.iter().any(|d| d.kind == 2) => x0 < tx + 3 && x0 + w > tx - 1 && y0 < ty + 3 && y0 + h > ty - 1,
+            _ => false,
+        }
+    }
+
     pub fn groups_with_dest(&self, g: usize) -> usize {
         self.dests.iter().filter(|d| d.group as usize == g).count()
     }
@@ -94,7 +102,7 @@ impl Game {
             let (rx0, ry0, rx1, ry1) = self.play_region();
             let x = rx0.max(1) + self.rng.below((rx1 - rx0 - 3).max(1) as u32) as i32;
             let y = ry0.max(1) + self.rng.below((ry1 - ry0 - 3).max(1) as u32) as i32;
-            if !self.area_free(x, y, 2, 2) {
+            if !self.area_free(x, y, 2, 2) || self.overlaps_terminal(x, y, 2, 2) {
                 continue;
             }
             let (px, py) = (x as f32 + 1.0, y as f32 + 1.0);
@@ -157,7 +165,7 @@ impl Game {
                 let (mx, my) = self.xy(m);
                 let x = mx + self.rng.below(5) as i32 - 2;
                 let y = my + self.rng.below(5) as i32 - 2;
-                if self.area_free(x, y, 1, 1) {
+                if self.area_free(x, y, 1, 1) && !self.overlaps_terminal(x, y, 1, 1) {
                     return self.add_house(group, x, y);
                 }
                 continue;
@@ -167,7 +175,7 @@ impl Game {
             let r = if far { 12.0 + self.rng.f32() * 8.0 } else { 4.0 + self.rng.f32().powi(2) * 8.0 };
             let x = (dx + angle.cos() * r).floor() as i32;
             let y = (dy + angle.sin() * r).floor() as i32;
-            if !self.area_free(x, y, 1, 1) {
+            if !self.area_free(x, y, 1, 1) || self.overlaps_terminal(x, y, 1, 1) {
                 continue;
             }
             return self.add_house(group, x, y);

@@ -140,6 +140,7 @@ test('it fits a phone screen and takes touch', async ({ browser }) => {
 test("pick Expert mode, or start today's map", async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/index.html');
+  await page.locator('#unlock-all').check();
   await page.locator('#mode-select button[data-mode="1"]').click();
   await expect(page.locator('#mode-blurb')).toContainText('40 seconds');
   await page.locator('#city-grid .card[data-city="london"]').click();

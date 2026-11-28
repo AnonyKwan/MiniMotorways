@@ -168,6 +168,10 @@ pub struct Game {
     pub eff: f32,
     /// Road connections removed by the last erase, so it can be undone.
     pub last_erase: Vec<(u32, u32)>,
+    /// Removed road connections that cars are still driving on; they vanish once the cars are off.
+    pub ghosts: Vec<(u32, u32)>,
+    /// Kind of the upgrade taken last week (Expert never offers the same one twice running).
+    pub last_pick_kind: Option<u8>,
     pub w: i32,
     pub h: i32,
     pub rng: Rng,
@@ -269,6 +273,8 @@ impl Game {
             stats: Stats::default(),
             eff: 0.0,
             last_erase: Vec::new(),
+            ghosts: Vec::new(),
+            last_pick_kind: None,
             w: city.w,
             h: city.h,
             rng,
@@ -379,6 +385,7 @@ impl Game {
         self.tick_dispatch(dt);
         self.tick_cars(dt);
         self.tick_week(dt);
+        self.tick_ghosts();
         if self.mode == MODE_EXPERT {
             self.tick_permanence(dt);
         }
@@ -653,5 +660,30 @@ impl Game {
         let (x, _) = self.centre(cell);
         self.transits.iter().any(|t| t.kind == 0 && t.wait <= 0.0 && (t.x - x).abs() < 2.6)
             || self.transits.iter().any(|t| t.kind == 0 && (t.x - x).abs() < 1.2)
+    }
+}
+
+impl Game {
+    fn car_on_edge(&self, a: u32, b: u32) -> bool {
+        self.cars.iter().any(|c| {
+            matches!(c.state, CarState::ToDest | CarState::ToHome)
+                && c.idx + 1 < c.path.len()
+                && ((c.path[c.idx] == a && c.path[c.idx + 1] == b) || (c.path[c.idx] == b && c.path[c.idx + 1] == a))
+        })
+    }
+
+    /// A deleted road keeps working until the cars already on it have driven off.
+    pub fn keep_ghost(&mut self, a: u32, b: u32) {
+        if self.car_on_edge(a, b) && !self.ghosts.contains(&(a, b)) {
+            self.ghosts.push((a, b));
+        }
+    }
+
+    pub fn tick_ghosts(&mut self) {
+        if self.ghosts.is_empty() {
+            return;
+        }
+        let ghosts = std::mem::take(&mut self.ghosts);
+        self.ghosts = ghosts.into_iter().filter(|&(a, b)| self.car_on_edge(a, b)).collect();
     }
 }

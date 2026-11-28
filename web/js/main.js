@@ -86,10 +86,16 @@ function buildModes() {
       app.mode = m.id; savePref('mode', m.id);
       box.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
       $('mode-blurb').textContent = m.blurb;
+      buildMenu();
     });
     box.appendChild(b);
   }
   $('mode-blurb').textContent = MODES[app.mode].blurb;
+}
+
+/** Expert opens on a map once one of its own challenges reaches 600 trips (doc 01.6). */
+function expertOpen(id) {
+  return app.unlockAll || [0, 1, 2].some((i) => ((app.challengeBest || {})[`city:${id}:${i}`] || 0) >= 600);
 }
 
 function buildMenu() {
@@ -99,7 +105,8 @@ function buildMenu() {
   const colors = GROUP_COLORS[app.themeName];
   cities.forEach((c, i) => {
     if (c.id === 'osaka' && !app.unlockAll && params.get('osaka') == null) return;
-    const open = isUnlocked(c.id, app.best, app.unlockAll);
+    const needExpert = app.mode === 1 && !expertOpen(c.id);
+    const open = isUnlocked(c.id, app.best, app.unlockAll) && !needExpert;
     const b = document.createElement('button');
     b.className = 'card';
     b.disabled = !open;
@@ -109,7 +116,7 @@ function buildMenu() {
     const sw = Array.from({ length: c.groups }, (_, g) => `<i style="background:${colors[g]}"></i>`).join('');
     b.innerHTML = `<span class="name"></span><span class="meta">${c.w}×${c.h} · ${start}</span>` +
       `<span class="swatch">${sw}</span>` +
-      (open ? `<span class="best">${best ? `Best ${best} trips` : 'Not played yet'}</span>` : `<span class="lock">🔒 ${lockText(c.id, cities)}</span>`);
+      (open ? `<span class="best">${best ? `Best ${best} trips` : 'Not played yet'}</span>` : `<span class="lock">🔒 ${needExpert ? 'Expert opens after 600 trips in one of this map’s challenges' : lockText(c.id, cities)}</span>`);
     b.querySelector('.name').textContent = c.name;
     b.addEventListener('click', () => startGame(i));
     grid.appendChild(b);

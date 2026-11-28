@@ -34,7 +34,9 @@ impl Game {
     }
 
     pub fn has_edge(&self, a: u32, b: u32) -> bool {
-        self.has_ground_edge(a, b) || self.motorway_index(a, b).is_some()
+        self.has_ground_edge(a, b)
+            || self.motorway_index(a, b).is_some()
+            || self.ghosts.iter().any(|&(x, y)| (x == a && y == b) || (x == b && y == a))
     }
 
     pub fn degree(&self, n: u32) -> u32 {
@@ -205,6 +207,7 @@ impl Game {
         self.conn[a as usize] &= !(1 << d);
         self.conn[b as usize] &= !(1 << od);
         let cost = self.edge_cost(a, b);
+        self.keep_ghost(a, b);
         self.concrete_used = self.concrete_used.saturating_sub(cost);
         self.drop_orphan_junction_parts(a);
         self.drop_orphan_junction_parts(b);

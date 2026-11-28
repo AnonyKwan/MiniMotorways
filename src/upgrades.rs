@@ -42,7 +42,19 @@ impl Game {
             .filter(|&(_, w)| w > 0.0)
             .collect();
         let mut picks: Vec<usize> = Vec::new();
-        let choices = self.mods.choices.unwrap_or(MAX_UPGRADE_CHOICES);
+        if self.mode == MODE_EXPERT {
+            if self.week as usize >= MAX_EXPERT_LIBRARY_WEEKS {
+                pool.retain(|&(ri, _)| self.city.rules[ri].kind == 0);
+            } else if let Some(last) = self.last_pick_kind {
+                pool.retain(|&(ri, _)| self.city.rules[ri].kind != last);
+            }
+        }
+        let mut choices = self.mods.choices.unwrap_or(MAX_UPGRADE_CHOICES);
+        if self.mode == MODE_EXPERT {
+            // one package of every kind that is available, strongest weight first
+            choices = if self.week as usize >= MAX_EXPERT_LIBRARY_WEEKS { 1 } else { KINDS };
+        }
+        let mut seen_kinds = [false; KINDS];
         while picks.len() < choices && !pool.is_empty() {
             let total: f32 = pool.iter().map(|p| p.1).sum();
             let mut roll = self.rng.f32() * total;
@@ -54,7 +66,13 @@ impl Game {
                 }
                 roll -= p.1;
             }
-            picks.push(pool.remove(chosen).0);
+            let ri = pool.remove(chosen).0;
+            let kind = self.city.rules[ri].kind as usize;
+            if self.mode == MODE_EXPERT && seen_kinds[kind] {
+                continue;
+            }
+            seen_kinds[kind] = true;
+            picks.push(ri);
         }
         // shuffle the two so the better weighted one is not always first
         if picks.len() == 2 && self.rng.f32() < 0.5 {
@@ -101,6 +119,7 @@ impl Game {
             return E_NO_OFFER;
         }
         let pack = self.offers[i].clone();
+        self.last_pick_kind = Some(pack.kind);
         self.owned[pack.kind as usize] += pack.amount;
         self.owned[0] += pack.add_concrete;
         if pack.rule != usize::MAX {

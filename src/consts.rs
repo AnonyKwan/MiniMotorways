@@ -60,6 +60,8 @@ pub const MAX_HOUSES_PER_GROUP: usize = 16;
 // ---- roads and upgrades (doc 04.2, 04.3) ----
 pub const MIN_MOTORWAY_LENGTH: i32 = 2;
 pub const MAX_UPGRADE_CHOICES: usize = 2;
+/// Expert mode offers the whole library for this many weeks, then only road tiles (doc 08.3).
+pub const MAX_EXPERT_LIBRARY_WEEKS: usize = 8;
 
 // ---- Expert mode permanence (doc 04.10) ----
 pub const PERMANENCE_SECONDS: f32 = 40.0;

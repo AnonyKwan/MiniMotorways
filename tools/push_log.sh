@@ -2,7 +2,7 @@
 # Publishes the tail of a CI log to the `ci-logs` branch so it can be read without signing in to GitHub.
 # usage: push_log.sh <name> <logfile>      (needs GITHUB_TOKEN and GITHUB_REPOSITORY)
 set -u
-name="$1"; file="$2"
+name="$1"; file="$(realpath "$2" 2>/dev/null || echo "$PWD/$2")"
 [ -f "$file" ] || exit 0
 work="$(mktemp -d)"
 url="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

@@ -1,138 +1,239 @@
-commit: 7d5503a37c16b646ee399cbb32e4507707b7eb24  ref: more  run: 46121814863
+commit: ec22f25690eb1f7733d1079d93609d935e3f9179  ref: more  run: 46122257314
 -----
 TAP version 13
 # Subtest: catalog lists the 27 maps and the hidden one
 ok 1 - catalog lists the 27 maps and the hidden one
   ---
-  duration_ms: 31.78385
+  duration_ms: 34.401866
   type: 'test'
   ...
 # Subtest: a new game starts empty and clean
 ok 2 - a new game starts empty and clean
   ---
-  duration_ms: 4.912987
+  duration_ms: 7.326381
   type: 'test'
   ...
 # Subtest: same seed gives the same game, different seed a different one
 ok 3 - same seed gives the same game, different seed a different one
   ---
-  duration_ms: 16.415647
+  duration_ms: 39.619366
   type: 'test'
   ...
 # Subtest: drawing a road spends concrete and erasing gives it back
 ok 4 - drawing a road spends concrete and erasing gives it back
   ---
-  duration_ms: 19.032648
+  duration_ms: 22.754319
   type: 'test'
   ...
 # Subtest: bad requests come back as codes, not crashes
 ok 5 - bad requests come back as codes, not crashes
   ---
-  duration_ms: 2.876197
+  duration_ms: 6.274555
   type: 'test'
   ...
 # Subtest: every map plays for two minutes of game time without trapping
 ok 6 - every map plays for two minutes of game time without trapping
   ---
-  duration_ms: 20.731273
+  duration_ms: 48.201077
   type: 'test'
   ...
 # Subtest: the first weekly offer opens after 140 seconds and can be taken
 ok 7 - the first weekly offer opens after 140 seconds and can be taken
   ---
-  duration_ms: 2.519117
+  duration_ms: 5.43192
+  type: 'test'
+  ...
+# Subtest: every challenge has a name, a description and valid modifiers
+ok 8 - every challenge has a name, a description and valid modifiers
+  ---
+  duration_ms: 0.828353
+  type: 'test'
+  ...
+# Subtest: daily and weekly challenges are the same for everyone
+ok 9 - daily and weekly challenges are the same for everyone
+  ---
+  duration_ms: 0.842605
+  type: 'test'
+  ...
+# Subtest: Saturdays are Expert days
+ok 10 - Saturdays are Expert days
+  ---
+  duration_ms: 0.119248
+  type: 'test'
+  ...
+# Subtest: every city has three challenges of growing size
+ok 11 - every city has three challenges of growing size
+  ---
+  duration_ms: 0.265134
+  type: 'test'
+  ...
+# Subtest: achievement table is complete
+ok 12 - achievement table is complete
+  ---
+  duration_ms: 1.14802
+  type: 'test'
+  ...
+# Subtest: score achievements unlock from the best trips on a map
+not ok 13 - score achievements unlock from the best trips on a map
+  ---
+  duration_ms: 1.608405
+  type: 'test'
+  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js/features.test.mjs:58:1'
+  failureType: 'testCodeFailure'
+  error: 'Beijing 100 earned'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/LittleLanes/LittleLanes/tests-js/features.test.mjs:63:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: live games count before they end
+ok 14 - live games count before they end
+  ---
+  duration_ms: 0.476029
+  type: 'test'
+  ...
+# Subtest: modifiers, undo and Endless work through the real WASM
+ok 15 - modifiers, undo and Endless work through the real WASM
+  ---
+  duration_ms: 87.685883
+  type: 'test'
+  ...
+# Subtest: the map opens up as the town grows
+ok 16 - the map opens up as the town grows
+  ---
+  duration_ms: 4.318252
   type: 'test'
   ...
 # Subtest: five maps are open from the start
-ok 8 - five maps are open from the start
+ok 17 - five maps are open from the start
   ---
-  duration_ms: 0.868132
+  duration_ms: 1.071626
   type: 'test'
   ...
 # Subtest: the unlock chain follows the design
-ok 9 - the unlock chain follows the design
+ok 18 - the unlock chain follows the design
   ---
-  duration_ms: 0.322898
+  duration_ms: 0.277614
   type: 'test'
   ...
 # Subtest: unlock all opens everything
-ok 10 - unlock all opens everything
+ok 19 - unlock all opens everything
   ---
-  duration_ms: 0.128544
+  duration_ms: 0.144295
   type: 'test'
   ...
 # Subtest: lock text names the requirement
-ok 11 - lock text names the requirement
+ok 20 - lock text names the requirement
   ---
-  duration_ms: 0.236417
+  duration_ms: 0.229551
   type: 'test'
   ...
 # Subtest: dragging across cells moves one step at a time and ends on target
-ok 12 - dragging across cells moves one step at a time and ends on target
+ok 21 - dragging across cells moves one step at a time and ends on target
   ---
-  duration_ms: 0.73409
+  duration_ms: 0.92006
   type: 'test'
   ...
 # Subtest: error codes have friendly text
-ok 13 - error codes have friendly text
+ok 22 - error codes have friendly text
   ---
-  duration_ms: 0.139872
+  duration_ms: 0.18151
   type: 'test'
   ...
 # Subtest: clock and pack text
-ok 14 - clock and pack text
+ok 23 - clock and pack text
   ---
-  duration_ms: 0.253964
+  duration_ms: 0.279927
   type: 'test'
   ...
 # Subtest: every colour has its own shape, in both themes
-ok 15 - every colour has its own shape, in both themes
+ok 24 - every colour has its own shape, in both themes
   ---
-  duration_ms: 0.094112
+  duration_ms: 0.151776
   type: 'test'
   ...
 # Subtest: three modes are offered
-ok 16 - three modes are offered
+not ok 25 - three modes are offered
   ---
-  duration_ms: 2.144502
+  duration_ms: 5.441925
   type: 'test'
+  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js/modes.test.mjs:12:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'Classic',
+        'Expert',
+        'Creative',
+    +   'Endless'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'Classic'
+    1: 'Expert'
+    2: 'Creative'
+  actual:
+    0: 'Classic'
+    1: 'Expert'
+    2: 'Creative'
+    3: 'Endless'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/LittleLanes/LittleLanes/tests-js/modes.test.mjs:13:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
   ...
 # Subtest: today's map is the same for everyone and never the hidden one
-ok 17 - today's map is the same for everyone and never the hidden one
+ok 26 - today's map is the same for everyone and never the hidden one
   ---
-  duration_ms: 0.596822
+  duration_ms: 5.59333
   type: 'test'
   ...
 # Subtest: hashing is stable
-ok 18 - hashing is stable
+ok 27 - hashing is stable
   ---
-  duration_ms: 0.431823
+  duration_ms: 0.170484
   type: 'test'
   ...
 # Subtest: each colour plays in its own register of one scale
-ok 19 - each colour plays in its own register of one scale
+ok 28 - each colour plays in its own register of one scale
   ---
-  duration_ms: 0.153422
+  duration_ms: 0.24887
   type: 'test'
   ...
 # Subtest: permanent roads have a message
-ok 20 - permanent roads have a message
+ok 29 - permanent roads have a message
   ---
-  duration_ms: 0.190638
+  duration_ms: 0.283953
   type: 'test'
   ...
 # Subtest: expert roads set and creative has no limits (through the real WASM)
-ok 21 - expert roads set and creative has no limits (through the real WASM)
+ok 30 - expert roads set and creative has no limits (through the real WASM)
   ---
-  duration_ms: 44.605073
+  duration_ms: 69.848307
   type: 'test'
   ...
-1..21
-# tests 21
+1..30
+# tests 30
 # suites 0
-# pass 21
-# fail 0
+# pass 28
+# fail 2
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 150.114324
+# duration_ms 234.095224

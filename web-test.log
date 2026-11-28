@@ -1,192 +1,248 @@
-commit: 0b8fa10c9b36f91225bd03578515af1ba0537474  ref: main  run: 46126107027
+commit: 8060aa4c98d9eb78ba3eaae88e190d8e1008de90  ref: options  run: 46126970440
 -----
 TAP version 13
 # Subtest: catalog lists the 27 maps and the hidden one
 ok 1 - catalog lists the 27 maps and the hidden one
   ---
-  duration_ms: 68.032882
+  duration_ms: 54.117208
   type: 'test'
   ...
 # Subtest: a new game starts empty and clean
 ok 2 - a new game starts empty and clean
   ---
-  duration_ms: 5.170345
+  duration_ms: 15.31089
   type: 'test'
   ...
 # Subtest: same seed gives the same game, different seed a different one
 ok 3 - same seed gives the same game, different seed a different one
   ---
-  duration_ms: 30.580031
+  duration_ms: 41.601109
   type: 'test'
   ...
 # Subtest: drawing a road spends concrete and erasing gives it back
 ok 4 - drawing a road spends concrete and erasing gives it back
   ---
-  duration_ms: 30.059695
+  duration_ms: 39.47882
   type: 'test'
   ...
 # Subtest: bad requests come back as codes, not crashes
 ok 5 - bad requests come back as codes, not crashes
   ---
-  duration_ms: 24.906272
+  duration_ms: 13.205442
   type: 'test'
   ...
 # Subtest: every map plays for two minutes of game time without trapping
 ok 6 - every map plays for two minutes of game time without trapping
   ---
-  duration_ms: 44.182764
+  duration_ms: 71.083108
   type: 'test'
   ...
 # Subtest: the first weekly offer opens after 140 seconds and can be taken
 ok 7 - the first weekly offer opens after 140 seconds and can be taken
   ---
-  duration_ms: 3.28003
+  duration_ms: 5.444878
   type: 'test'
   ...
 # Subtest: every challenge has a name, a description and valid modifiers
 ok 8 - every challenge has a name, a description and valid modifiers
   ---
-  duration_ms: 2.624262
+  duration_ms: 1.203122
   type: 'test'
   ...
 # Subtest: daily and weekly challenges are the same for everyone
 ok 9 - daily and weekly challenges are the same for everyone
   ---
-  duration_ms: 0.984758
+  duration_ms: 1.18086
   type: 'test'
   ...
 # Subtest: Saturdays are Expert days
 ok 10 - Saturdays are Expert days
   ---
-  duration_ms: 0.134771
+  duration_ms: 0.177534
   type: 'test'
   ...
 # Subtest: every city has three challenges of growing size
 ok 11 - every city has three challenges of growing size
   ---
-  duration_ms: 0.317753
+  duration_ms: 0.396325
   type: 'test'
   ...
 # Subtest: achievement table is complete
 ok 12 - achievement table is complete
   ---
-  duration_ms: 1.278081
+  duration_ms: 1.45202
   type: 'test'
   ...
 # Subtest: score achievements unlock from the best trips on a map
 ok 13 - score achievements unlock from the best trips on a map
   ---
-  duration_ms: 1.189854
+  duration_ms: 1.390273
   type: 'test'
   ...
 # Subtest: live games count before they end
 ok 14 - live games count before they end
   ---
-  duration_ms: 1.473056
+  duration_ms: 1.111108
   type: 'test'
   ...
 # Subtest: modifiers, undo and Endless work through the real WASM
 ok 15 - modifiers, undo and Endless work through the real WASM
   ---
-  duration_ms: 161.642632
+  duration_ms: 148.477583
   type: 'test'
   ...
 # Subtest: the map opens up as the town grows
 ok 16 - the map opens up as the town grows
   ---
-  duration_ms: 4.00072
+  duration_ms: 8.334837
   type: 'test'
   ...
 # Subtest: five maps are open from the start
 ok 17 - five maps are open from the start
   ---
-  duration_ms: 1.484563
+  duration_ms: 1.472659
   type: 'test'
   ...
 # Subtest: the unlock chain follows the design
 ok 18 - the unlock chain follows the design
   ---
-  duration_ms: 0.374459
+  duration_ms: 0.33543
   type: 'test'
   ...
 # Subtest: unlock all opens everything
 ok 19 - unlock all opens everything
   ---
-  duration_ms: 0.170324
+  duration_ms: 0.14385
   type: 'test'
   ...
 # Subtest: lock text names the requirement
 ok 20 - lock text names the requirement
   ---
-  duration_ms: 0.384584
+  duration_ms: 0.353093
   type: 'test'
   ...
 # Subtest: dragging across cells moves one step at a time and ends on target
 ok 21 - dragging across cells moves one step at a time and ends on target
   ---
-  duration_ms: 2.718423
+  duration_ms: 1.023594
   type: 'test'
   ...
 # Subtest: error codes have friendly text
 ok 22 - error codes have friendly text
   ---
-  duration_ms: 0.14087
+  duration_ms: 0.25519
   type: 'test'
   ...
 # Subtest: clock and pack text
 ok 23 - clock and pack text
   ---
-  duration_ms: 0.233398
+  duration_ms: 0.402677
   type: 'test'
   ...
 # Subtest: every colour has its own shape, in both themes
 ok 24 - every colour has its own shape, in both themes
   ---
-  duration_ms: 0.096263
+  duration_ms: 0.183815
   type: 'test'
   ...
 # Subtest: four modes are offered
 ok 25 - four modes are offered
   ---
-  duration_ms: 1.249483
+  duration_ms: 2.049352
   type: 'test'
   ...
 # Subtest: today's map is the same for everyone and never the hidden one
 ok 26 - today's map is the same for everyone and never the hidden one
   ---
-  duration_ms: 1.948895
+  duration_ms: 1.035567
   type: 'test'
   ...
 # Subtest: hashing is stable
 ok 27 - hashing is stable
   ---
-  duration_ms: 0.24186
+  duration_ms: 0.233178
   type: 'test'
   ...
 # Subtest: each colour plays in its own register of one scale
 ok 28 - each colour plays in its own register of one scale
   ---
-  duration_ms: 0.567116
+  duration_ms: 0.258807
   type: 'test'
   ...
 # Subtest: permanent roads have a message
 ok 29 - permanent roads have a message
   ---
-  duration_ms: 0.335821
+  duration_ms: 0.334579
   type: 'test'
   ...
 # Subtest: expert roads set and creative has no limits (through the real WASM)
 ok 30 - expert roads set and creative has no limits (through the real WASM)
   ---
-  duration_ms: 47.961026
+  duration_ms: 99.218194
   type: 'test'
   ...
-1..30
-# tests 30
+# Subtest: options are cleaned up and clamped
+ok 31 - options are cleaned up and clamped
+  ---
+  duration_ms: 2.038041
+  type: 'test'
+  ...
+# Subtest: colour-blind colours swap in place and back
+ok 32 - colour-blind colours swap in place and back
+  ---
+  duration_ms: 0.383751
+  type: 'test'
+  ...
+# Subtest: a save is recognised only when it makes sense
+not ok 33 - a save is recognised only when it makes sense
+  ---
+  duration_ms: 0.977748
+  type: 'test'
+  location: '/home/runner/work/LittleLanes/LittleLanes/tests-js/save.test.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    null !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/LittleLanes/LittleLanes/tests-js/save.test.mjs:33:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: replaying a recorded game rebuilds exactly the same town
+ok 34 - replaying a recorded game rebuilds exactly the same town
+  ---
+  duration_ms: 50.168323
+  type: 'test'
+  ...
+# Subtest: stepping to a tick count is exact
+ok 35 - stepping to a tick count is exact
+  ---
+  duration_ms: 3.641204
+  type: 'test'
+  ...
+# Subtest: note pitch table is unchanged
+ok 36 - note pitch table is unchanged
+  ---
+  duration_ms: 0.281229
+  type: 'test'
+  ...
+1..36
+# tests 36
 # suites 0
-# pass 30
-# fail 0
+# pass 35
+# fail 1
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 283.577953
+# duration_ms 387.703253

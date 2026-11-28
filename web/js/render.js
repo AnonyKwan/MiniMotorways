@@ -149,6 +149,17 @@ export function buildTerrainLayer(w, h, bytes, theme, makeCanvas) {
   c.strokeStyle = theme.foam;
   c.lineWidth = 1.5;
   c.stroke();
+  // railway: sleepers and two steel rails
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!(bytes[y * w + x] & 8)) continue;
+      c.fillStyle = theme.trunk;
+      c.fillRect(x * S + S * 0.42, y * S + S * 0.12, S * 0.16, S * 0.76);
+      c.fillStyle = theme.deckEdge;
+      c.fillRect(x * S, y * S + S * 0.26, S + 1, S * 0.07);
+      c.fillRect(x * S, y * S + S * 0.67, S + 1, S * 0.07);
+    }
+  }
   // hills: layered peaks with a lit face and a shaded face
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -333,7 +344,7 @@ export function drawScene(ctx, W, H, view, scene, theme, themeName, time, now = 
 
   // ---- destinations: car park slab, building, timer ring, pins ----
   const dsnap = snap.dests || [];
-  (statics.dests || []).forEach(([c, g, level], i) => {
+  (statics.dests || []).forEach(([c, g, level, kind], i) => {
     const x0 = (c % w) * s, y0 = Math.floor(c / w) * s;
     const info = dsnap[i] || [0, level, 0, 6];
     const [pins, , ot, thr] = info;
@@ -362,6 +373,12 @@ export function drawScene(ctx, W, H, view, scene, theme, themeName, time, now = 
     if (level <= 0) ctx.fillRect(cx - bs / 2 + s * 0.12, cy - s * 0.2 - bs / 2 + s * 0.05, bs - s * 0.24, s * 0.07);
     ctx.fillStyle = theme.pinFill;
     glyph(ctx, GROUP_SHAPES[g], cx, cy - s * 0.2, s * 0.3); ctx.fill();
+    if (kind === 1) { // station: a little train on the roof
+      ctx.fillStyle = theme.ink; roundRect(ctx, cx - s * 0.36, cy + s * 0.2, s * 0.72, s * 0.18, s * 0.05); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx - s * 0.2, cy + s * 0.4, s * 0.05, 0, Math.PI * 2); ctx.arc(cx + s * 0.2, cy + s * 0.4, s * 0.05, 0, Math.PI * 2); ctx.fill();
+    } else if (kind === 2) { // ferry terminal: a boat hull
+      ctx.fillStyle = theme.ink; ctx.beginPath(); ctx.moveTo(cx - s * 0.36, cy + s * 0.2); ctx.lineTo(cx + s * 0.36, cy + s * 0.2); ctx.lineTo(cx + s * 0.22, cy + s * 0.4); ctx.lineTo(cx - s * 0.22, cy + s * 0.4); ctx.closePath(); ctx.fill();
+    }
     ctx.restore();
     // pins: marker drops lined up above the building
     const perRow = 5;
@@ -387,6 +404,32 @@ export function drawScene(ctx, W, H, view, scene, theme, themeName, time, now = 
       ctx.beginPath(); ctx.arc(cx, cy, s * 1.34, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); ctx.stroke();
     }
   });
+
+  // ---- ferry route, trains and boats ----
+  const bt = statics.boat;
+  if (bt && bt.length === 3) {
+    ctx.strokeStyle = theme.foam; ctx.lineWidth = s * 0.06; ctx.setLineDash([s * 0.3, s * 0.3]);
+    ctx.beginPath(); ctx.moveTo((bt[1] + 0.5) * s, (bt[0] + 0.5) * s); ctx.lineTo((bt[2] + 0.5) * s, (bt[0] + 0.5) * s); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  for (const [kind, tx, ty, dir] of snap.transit || []) {
+    ctx.save();
+    ctx.translate(tx * s, ty * s);
+    if (kind === 0) {
+      for (let k = 0; k < 3; k++) {
+        const ox = -dir * k * s * 1.05;
+        ctx.fillStyle = theme.shadow; roundRect(ctx, ox - s * 0.5 + s * 0.04, -s * 0.2 + s * 0.08, s * 1.0, s * 0.4, s * 0.1); ctx.fill();
+        ctx.fillStyle = k === 0 ? theme.ink : theme.deckEdge; roundRect(ctx, ox - s * 0.5, -s * 0.2, s * 1.0, s * 0.4, s * 0.1); ctx.fill();
+        ctx.fillStyle = theme.deck; ctx.fillRect(ox - s * 0.34, -s * 0.1, s * 0.68, s * 0.12);
+      }
+    } else {
+      ctx.fillStyle = theme.shadow; ctx.beginPath(); ctx.ellipse(s * 0.05, s * 0.1, s * 0.62, s * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = theme.ink; ctx.beginPath();
+      ctx.moveTo(-s * 0.6 * dir, -s * 0.2); ctx.lineTo(s * 0.6 * dir, -s * 0.2); ctx.lineTo(s * 0.45 * dir, s * 0.22); ctx.lineTo(-s * 0.45 * dir, s * 0.22); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = theme.deck; ctx.fillRect(-s * 0.2, -s * 0.12, s * 0.4, s * 0.16);
+    }
+    ctx.restore();
+  }
 
   // ---- cars ----
   for (const [x, y, dx, dy, g, parked] of snap.cars || []) {

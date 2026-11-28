@@ -50,6 +50,9 @@ pub struct City {
     /// Visible map height (cells) at the start and after 69 days.
     pub cam_start: f32,
     pub cam_end: f32,
+    /// Maps with a railway (a train brings pins to a station) or a ferry route.
+    pub trains: u8,
+    pub boats: u8,
 }
 
 pub fn city_count() -> usize {

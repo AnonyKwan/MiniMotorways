@@ -60,7 +60,7 @@ for c in cities:
     b = c["bundle"]; ident = b.upper()
     if not start[b] or int(c["groups"]) == 0: continue
     wa, ha = [float(x) for x in c["area"].split("x")]
-    L.append(f'    City {{ id: "{b}", name: "{c["city"]}", w: {math.ceil(wa)}, h: {math.ceil(ha)}, groups: {c["groups"]}, water: {c["water"]}, mountain: {c["mountain"]}, trees: {c["trees"]}, start: {ident}_START, plan: {ident}_PLAN, rules: {ident}_RULES, osc: {ident}_OSC, milestones: {ident}_MILES, cam_start: {cams.get(b, (10.0, 20.0))[0]}, cam_end: {cams.get(b, (10.0, 20.0))[1]} }},')
+    L.append(f'    City {{ id: "{b}", name: "{c["city"]}", w: {math.ceil(wa)}, h: {math.ceil(ha)}, groups: {c["groups"]}, water: {c["water"]}, mountain: {c["mountain"]}, trees: {c["trees"]}, start: {ident}_START, plan: {ident}_PLAN, rules: {ident}_RULES, osc: {ident}_OSC, milestones: {ident}_MILES, cam_start: {cams.get(b, (10.0, 20.0))[0]}, cam_end: {cams.get(b, (10.0, 20.0))[1]}, trains: {int(c['train'] or 0)}, boats: {int(c['boatMap'] or 0)} }},')
 L.append("];")
 open(out, "w", encoding="utf-8").write("\n".join(L) + "\n")
 print(len(names), "cities")

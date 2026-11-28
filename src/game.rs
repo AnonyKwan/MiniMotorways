@@ -50,6 +50,21 @@ pub struct House {
     pub cars: Vec<usize>,
 }
 
+/// A train or a ferry that brings pins to a station or terminal.
+#[derive(Clone, Debug)]
+pub struct Transit {
+    /// 0 train, 1 ferry
+    pub kind: u8,
+    pub x: f32,
+    pub y: f32,
+    pub x0: f32,
+    pub x1: f32,
+    pub dir: f32,
+    pub speed: f32,
+    pub wait: f32,
+    pub armed: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct Dest {
     /// Top-left cell of the 2x2 footprint.
@@ -62,6 +77,8 @@ pub struct Dest {
     pub born: f32,
     pub ot: f32,
     pub ospeed: f32,
+    /// 0 ordinary, 1 railway station, 2 ferry terminal (their pins come from arrivals)
+    pub kind: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -163,6 +180,8 @@ pub struct Game {
     pub bidx: Vec<u32>,
     pub houses: Vec<House>,
     pub dests: Vec<Dest>,
+    pub transits: Vec<Transit>,
+    pub transit_arrivals: u32,
     pub cars: Vec<Car>,
     pub groups: Vec<GroupState>,
     pub motorways: Vec<(u32, u32)>,
@@ -234,6 +253,13 @@ impl Game {
         if mode == MODE_CREATIVE {
             owned = [9999; KINDS];
         }
+        let mut transits = Vec::new();
+        if terrain.rail_y >= 0 {
+            transits.push(Transit { kind: 0, x: -6.0, y: terrain.rail_y as f32 + 0.5, x0: -6.0, x1: city.w as f32 + 6.0, dir: 1.0, speed: 3.0 * SPEED_UNIT, wait: 4.0, armed: true });
+        }
+        if let Some((yb, wx0, wx1)) = terrain.boat {
+            transits.push(Transit { kind: 1, x: wx1 as f32 + 0.5, y: yb as f32 + 0.5, x0: wx0 as f32 + 0.5, x1: wx1 as f32 + 0.5, dir: -1.0, speed: 2.6, wait: 2.0, armed: true });
+        }
         Game {
             city_idx,
             city,
@@ -253,6 +279,8 @@ impl Game {
             bidx: vec![NONE; n],
             houses: Vec::new(),
             dests: Vec::new(),
+            transits,
+            transit_arrivals: 0,
             cars: Vec::new(),
             groups,
             motorways: Vec::new(),
@@ -347,6 +375,7 @@ impl Game {
         self.tick_spawn();
         self.tick_pins(dt);
         self.tick_overcrowd(dt);
+        self.tick_transit(dt);
         self.tick_dispatch(dt);
         self.tick_cars(dt);
         self.tick_week(dt);
@@ -410,6 +439,10 @@ impl Game {
             self.dests[di].pin_timer = interval;
             self.add_pin(di);
         }
+    }
+
+    pub fn add_pin_public(&mut self, di: usize) {
+        self.add_pin(di);
     }
 
     fn add_pin(&mut self, di: usize) {
@@ -557,5 +590,68 @@ impl Game {
         } else {
             crate::roads::E_NOTHING
         }
+    }
+}
+
+impl Game {
+    /// Trains run the length of the map; ferries shuttle across their channel.
+    pub fn tick_transit(&mut self, dt: f32) {
+        for ti in 0..self.transits.len() {
+            let t = &mut self.transits[ti];
+            if t.wait > 0.0 {
+                t.wait -= dt;
+                continue;
+            }
+            t.x += t.dir * t.speed * dt;
+            if t.x >= t.x1 {
+                t.x = t.x1;
+                t.dir = -1.0;
+                t.wait = 3.0;
+            } else if t.x <= t.x0 {
+                t.x = t.x0;
+                t.dir = 1.0;
+                t.wait = 3.0;
+            }
+            let (kind, x, armed) = (t.kind, t.x, t.armed);
+            let target = self.dests.iter().position(|d| d.kind == kind + 1);
+            let di = match target {
+                Some(di) => di,
+                None => continue,
+            };
+            let at = if kind == 0 { self.dest_centre(di).0 } else { self.transits[ti].x0 };
+            if armed && (x - at).abs() < 0.35 {
+                self.transits[ti].armed = false;
+                if kind == 0 {
+                    self.transits[ti].wait = 2.0;
+                }
+                self.transit_arrive(di, kind);
+            } else if !armed && (x - at).abs() > 3.0 {
+                self.transits[ti].armed = true;
+            }
+        }
+    }
+
+    fn transit_arrive(&mut self, di: usize, kind: u8) {
+        let g = self.dests[di].group;
+        let n = if kind == 0 {
+            let houses = self.houses.iter().filter(|h| h.group == g).count() as f32;
+            ((houses * 0.25).round() as u32).clamp(1, 4)
+        } else {
+            1 + self.rng.below(3)
+        };
+        for _ in 0..n {
+            self.add_pin_public(di);
+        }
+        self.transit_arrivals += 1;
+    }
+
+    /// Is a train close enough to a rail cell that cars must wait?
+    pub fn train_near(&self, cell: u32) -> bool {
+        if !self.terrain.rail[cell as usize] {
+            return false;
+        }
+        let (x, _) = self.centre(cell);
+        self.transits.iter().any(|t| t.kind == 0 && t.wait <= 0.0 && (t.x - x).abs() < 2.6)
+            || self.transits.iter().any(|t| t.kind == 0 && (t.x - x).abs() < 1.2)
     }
 }

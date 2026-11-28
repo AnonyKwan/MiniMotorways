@@ -12,6 +12,12 @@ pub struct Terrain {
     pub h: i32,
     pub kind: Vec<u8>,
     pub tree: Vec<bool>,
+    /// A railway runs along row `rail_y` (or -1 when the map has none).
+    pub rail: Vec<bool>,
+    pub rail_y: i32,
+    /// Ferry route: (row, first water column, last water column) and the terminal's top-left cell.
+    pub boat: Option<(i32, i32, i32)>,
+    pub terminal: Option<(i32, i32)>,
 }
 
 fn hash(x: i32, y: i32, seed: u32) -> f32 {
@@ -97,6 +103,33 @@ impl Terrain {
         }
         carve(&mut kind, &wv, fraction(city.water, 0.32), WATER);
         carve(&mut kind, &mv, fraction(city.mountain, 0.22), MOUNTAIN);
+        let mut rail = vec![false; n];
+        let mut rail_y = -1;
+        if city.trains > 0 {
+            rail_y = (h / 2 - 2 + rng.below(5) as i32).clamp(3, h - 4);
+            for x in 0..w {
+                let i = (rail_y * w + x) as usize;
+                kind[i] = LAND;
+                rail[i] = true;
+            }
+        }
+        let mut boat = None;
+        let mut terminal = None;
+        if city.boats > 0 {
+            let yb = (h / 2 + 3 + rng.below(3) as i32).clamp(2, h - 4);
+            let tx = w / 2 + 1;
+            for y in yb..yb + 2 {
+                for x in tx..tx + 2 {
+                    kind[(y * w + x) as usize] = LAND;
+                }
+            }
+            let (wx0, wx1) = (tx + 2, (tx + 10).min(w - 2));
+            for x in wx0..=wx1 {
+                kind[(yb * w + x) as usize] = WATER;
+            }
+            boat = Some((yb, wx0, wx1));
+            terminal = Some((tx, yb));
+        }
         let mut tree = vec![false; n];
         let want = city.trees.clamp(12, 90);
         let mut placed = 0;
@@ -104,11 +137,20 @@ impl Terrain {
         while placed < want && tries < 4000 {
             tries += 1;
             let i = rng.below(n as u32) as usize;
-            if kind[i] == LAND && !tree[i] {
+            if kind[i] == LAND && !tree[i] && !rail[i] && !near_route(i, w, boat, terminal) {
                 tree[i] = true;
                 placed += 1;
             }
         }
-        Terrain { w, h, kind, tree }
+        Terrain { w, h, kind, tree, rail, rail_y, boat, terminal }
     }
+}
+
+/// Keeps trees off the ferry shore and terminal.
+fn near_route(i: usize, w: i32, boat: Option<(i32, i32, i32)>, terminal: Option<(i32, i32)>) -> bool {
+    let (x, y) = (i as i32 % w, i as i32 / w);
+    if let (Some((yb, _, _)), Some((tx, _))) = (boat, terminal) {
+        return (y - yb).abs() <= 2 && x >= tx - 1 && x <= tx + 3;
+    }
+    false
 }

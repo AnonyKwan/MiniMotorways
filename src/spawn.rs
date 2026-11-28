@@ -61,6 +61,31 @@ impl Game {
         total
     }
 
+    fn place_special(&mut self, group: u8, kind: u8) -> bool {
+        let spot = if kind == 1 {
+            let ry = self.terrain.rail_y;
+            let mut found = None;
+            for _ in 0..80 {
+                let (rx0, _, rx1, _) = self.play_region();
+                let x = rx0.max(2) + self.rng.below((rx1 - rx0 - 5).max(1) as u32) as i32;
+                let y = if self.rng.f32() < 0.5 { ry - 2 } else { ry + 1 };
+                if self.area_free(x, y, 2, 2) {
+                    found = Some((x, y));
+                    break;
+                }
+            }
+            found
+        } else {
+            self.terrain.terminal.filter(|&(x, y)| self.area_free(x, y, 2, 2))
+        };
+        let (x, y) = match spot {
+            Some(s) => s,
+            None => return false,
+        };
+        self.insert_dest(group, x, y, kind);
+        true
+    }
+
     fn place_dest(&mut self, group: u8) -> bool {
         let first = self.dests.is_empty();
         let mut best: Option<(f32, i32, i32)> = None;
@@ -94,6 +119,11 @@ impl Game {
             Some(b) => b,
             None => return false,
         };
+        self.insert_dest(group, x, y, 0);
+        true
+    }
+
+    fn insert_dest(&mut self, group: u8, x: i32, y: i32, kind: u8) {
         let cell = self.cell(x, y);
         let di = self.dests.len();
         for (cx, cy) in [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)] {
@@ -108,13 +138,13 @@ impl Game {
             level: if self.mods.all_upgraded { 1 } else { 0 },
             pins: 0,
             assigned: 0,
-            pin_timer: FIRST_PIN_DELAY,
+            pin_timer: if kind == 0 { FIRST_PIN_DELAY } else { f32::INFINITY },
             born: self.time,
             ot: 0.0,
             ospeed: 0.0,
+            kind,
         });
         self.static_ver += 1;
-        true
     }
 
     fn place_house(&mut self, group: u8, near: usize) -> bool {
@@ -218,7 +248,16 @@ impl Game {
                 i += 1;
                 continue;
             }
-            if self.place_dest(p.group) {
+            let n = self.dests.len();
+            let special = if self.city.trains > 0 && n == 2 && !self.dests.iter().any(|d| d.kind == 1) {
+                1
+            } else if self.city.boats > 0 && n == 3 && !self.dests.iter().any(|d| d.kind == 2) {
+                2
+            } else {
+                0
+            };
+            let placed = if special > 0 { self.place_special(p.group, special) } else { self.place_dest(p.group) };
+            if placed {
                 self.last_dest_spawn = self.time;
                 self.pending.remove(i);
             } else if p.fails + 1 >= MAX_FAILED_DEST_BEFORE_UPGRADE {

@@ -239,6 +239,12 @@ impl Game {
             }
         }
 
+        // level crossing: stop before the rail while a train is close
+        if !last && rem < 1.0 && self.train_near(b) && !self.train_near(a) {
+            max_travel = max_travel.min((rem - 0.5).max(0.0));
+            blocked = true;
+        }
+
         // speed
         let motorway = self.is_motorway_edge(a, b);
         let mut target = if motorway { MOTORWAY_SPEED } else { LANE_SPEED };

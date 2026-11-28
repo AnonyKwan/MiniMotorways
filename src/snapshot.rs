@@ -31,14 +31,15 @@ impl Game {
             .kind
             .iter()
             .zip(self.terrain.tree.iter())
-            .map(|(&k, &t)| k | if t { 4 } else { 0 })
+            .zip(self.terrain.rail.iter())
+            .map(|((&k, &t), &r)| k | (if t { 4 } else { 0 }) | (if r { 8 } else { 0 }))
             .collect()
     }
 
     /// Buildings and roads; only changes when `static_ver` changes.
     pub fn statics(&self) -> String {
         let houses: Vec<String> = self.houses.iter().map(|h| format!("[{},{}]", h.cell, h.group)).collect();
-        let dests: Vec<String> = self.dests.iter().map(|d| format!("[{},{},{}]", d.cell, d.group, d.level)).collect();
+        let dests: Vec<String> = self.dests.iter().map(|d| format!("[{},{},{},{}]", d.cell, d.group, d.level, d.kind)).collect();
         let mut roads = Vec::new();
         for c in 0..self.conn.len() as u32 {
             for d in 0..8 {
@@ -56,7 +57,7 @@ impl Game {
         let lights: Vec<String> = (0..self.light.len()).filter(|&i| self.light[i]).map(|i| i.to_string()).collect();
         let rounds: Vec<String> = (0..self.round.len()).filter(|&i| self.round[i]).map(|i| i.to_string()).collect();
         format!(
-            "{{\"ver\":{},\"mode\":{},\"w\":{},\"h\":{},\"houses\":{},\"dests\":{},\"roads\":{},\"mw\":{},\"lights\":{},\"rounds\":{}}}",
+            "{{\"ver\":{},\"mode\":{},\"w\":{},\"h\":{},\"houses\":{},\"dests\":{},\"roads\":{},\"mw\":{},\"lights\":{},\"rounds\":{},\"railY\":{},\"boat\":{}}}",
             self.static_ver,
             self.mode,
             self.w,
@@ -66,7 +67,12 @@ impl Game {
             array(&roads),
             array(&mw),
             array(&lights),
-            array(&rounds)
+            array(&rounds),
+            self.terrain.rail_y,
+            match self.terrain.boat {
+                Some((y, a, b)) => format!("[{},{},{}]", y, a, b),
+                None => "[]".to_string(),
+            }
         )
     }
 
@@ -87,6 +93,7 @@ impl Game {
             .map(|d| format!("[{},{},{},{}]", d.pins, d.level, num(d.ot), Self::pin_threshold(d.level)))
             .collect();
         let region = self.play_region();
+        let transit: Vec<String> = self.transits.iter().map(|t| format!("[{},{},{},{}]", t.kind, num(t.x), num(t.y), num(t.dir))).collect();
         let mut dry = Vec::new();
         if self.mode == MODE_EXPERT {
             for c in 0..self.conn.len() as u32 {
@@ -99,7 +106,7 @@ impl Game {
             }
         }
         format!(
-            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{},\"eff\":[{},{},{}],\"region\":[{},{},{},{}],\"stats\":[{},{},{},{},{},{},{},{},{},{}]}}",
+            "{{\"t\":{},\"day\":{},\"week\":{},\"wp\":{},\"score\":{},\"over\":{},\"overDest\":{},\"offerOpen\":{},\"ver\":{},\"up\":{},\"offers\":{},\"cars\":{},\"dests\":{},\"dry\":{},\"eff\":[{},{},{}],\"region\":[{},{},{},{}],\"transit\":{},\"stats\":[{},{},{},{},{},{},{},{},{},{}]}}",
             num(self.time),
             num(self.day()),
             self.week,
@@ -121,6 +128,7 @@ impl Game {
             region.1,
             region.2,
             region.3,
+            array(&transit),
             self.stats.milestones,
             self.stats.trees,
             self.stats.deleted,

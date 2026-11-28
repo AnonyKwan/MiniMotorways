@@ -1011,7 +1011,10 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
 
     // Two-finger pinch and pan
     // The view follows the fingers exactly: the ground under the two fingers stays under them.
-    let all = touches();
+    // touches() reports device pixels while the mouse, the screen size and the camera use
+    // logical pixels: convert, or the view runs ahead of the fingers on high-density phones.
+    let dpi = macroquad::miniquad::window::dpi_scale();
+    let all: Vec<Touch> = touches().into_iter().map(|mut t| { t.position /= dpi; t }).collect();
     let any_touch = !all.is_empty();
     let cancelled = all.iter().any(|t| t.phase == TouchPhase::Cancelled);
     let mut ts: Vec<Touch> = all.into_iter().filter(|t| !matches!(t.phase, TouchPhase::Ended | TouchPhase::Cancelled)).collect();
@@ -1070,8 +1073,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
     }
 
     let drawing = matches!(g.tool, Tool::Road | Tool::Erase);
-    // Touch positions are in device pixels, so the slop grows with the screen's pixel density.
-    let slop = TAP_SLOP_CSS * macroquad::miniquad::window::dpi_scale();
+    let slop = TAP_SLOP_CSS;
     if pressed_l {
         g.stroke_on = true;
     }

@@ -68,7 +68,7 @@ export function errorText(code) {
     case ERR.NO_UPGRADE: return 'None of those left';
     case ERR.BAD_PLACEMENT: return "Can't place that here";
     case ERR.TOO_SHORT: return 'A motorway needs at least 2 tiles';
-    case ERR.PERMANENT: return 'That road has set and can't be removed';
+    case ERR.PERMANENT: return "That road has set and can't be removed";
     default: return '';
   }
 }

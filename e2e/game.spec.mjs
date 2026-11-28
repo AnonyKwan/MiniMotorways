@@ -135,7 +135,7 @@ test('it fits a phone screen and takes touch', async ({ browser }) => {
   await ctx.close();
 });
 
-test('pick Expert mode, or start today's map', async ({ page }) => {
+test("pick Expert mode, or start today's map", async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/index.html');
   await page.locator('#mode-select button[data-mode="1"]').click();

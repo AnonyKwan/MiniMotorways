@@ -48,13 +48,11 @@ async function boot() {
   buildTools();
   buildMenu();
   app.screen = 'menu';
-  const want = params.get('city');
-  if (want) {
-    const i = app.core.cities.findIndex((c) => c.id === want);
-    if (i >= 0) { startGame(i); return; }
-  }
-  showMenu();
   requestAnimationFrame(frame);
+  const want = params.get('city');
+  const i = want ? app.core.cities.findIndex((c) => c.id === want) : -1;
+  if (i >= 0) startGame(i);
+  else showMenu();
 }
 
 function setTheme(name) {
@@ -125,7 +123,6 @@ function startGame(cityIndex, seed) {
   $('hud-city').textContent = c.name;
   if (!app.helpSeen) { $('help').hidden = false; app.helpSeen = true; savePref('helpSeen', true); setSpeed(0); }
   updateTools(true);
-  requestAnimationFrame(frame);
 }
 
 function setSpeed(s) {
@@ -170,6 +167,11 @@ function render(t) {
     layer: app.layer, hover: app.hover,
   }, THEMES[app.themeName], app.themeName, app.snap.t);
 }
+
+app.cellCenter = (c) => {
+  const v = viewTransform(), w = app.statics.w, r = canvas.getBoundingClientRect();
+  return [r.left + v.ox + ((c % w) + 0.5) * v.scale, r.top + v.oy + (Math.floor(c / w) + 0.5) * v.scale];
+};
 
 function baseScale() {
   const w = app.statics ? app.statics.w : 40, h = app.statics ? app.statics.h : 22;

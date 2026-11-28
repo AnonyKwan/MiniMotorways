@@ -116,7 +116,7 @@ impl Terrain {
         let mut boat = None;
         let mut terminal = None;
         if city.boats > 0 {
-            let yb = (h / 2 + 3 + rng.below(3) as i32).clamp(2, h - 4);
+            let yb = (h / 2 + rng.below(2) as i32).clamp(2, h - 4);
             let tx = w / 2 + 1;
             for y in yb..yb + 2 {
                 for x in tx..tx + 2 {

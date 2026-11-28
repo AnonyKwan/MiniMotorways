@@ -325,6 +325,8 @@ struct Game {
     touch_lock: bool,
     new_best: bool,
     trip_cooldown: f32,
+    /// Each car's wait at a crossing last frame, so a horn sounds once when one gets impatient.
+    waits: Vec<f32>,
     /// Car poses before the latest simulation step, so drawing can blend between steps.
     prev_poses: Vec<Option<(Vec2, Vec2)>>,
     world_cache: render3d::WorldCache,
@@ -374,6 +376,7 @@ impl Game {
             touch_lock: false,
             new_best: false,
             trip_cooldown: 0.0,
+            waits: Vec::new(),
             prev_poses: Vec::new(),
             world_cache: Default::default(),
             title_cache: Default::default(),
@@ -875,7 +878,9 @@ async fn main() {
                 g.follow_town(get_frame_time().min(0.1));
             }
             step_sim(&mut g);
+            horns(&mut g);
         } else {
+            platform::music(0, 0, 1, 0.0, platform::MusicMode::Calm, g.title_map.index());
             // Hovering a map card previews it behind the title.
             if let Some(Btn { action: Action::Start(i), .. }) = btns.iter().find(|b| b.rect.contains(m)) {
                 let k = MapKind::ALL[*i];
@@ -1091,7 +1096,7 @@ fn play_input(g: &mut Game, consumed: bool, m: Vec2, mp: Vec2) {
                 }
             }
             if placed {
-                platform::play(Sfx::Road);
+                platform::play(if g.drag_erase { Sfx::Erase } else { Sfx::Road });
             }
             g.last_tile = Some(t);
         }
@@ -1207,6 +1212,21 @@ fn smooth_poses(g: &Game) -> Vec<Option<(Vec2, Vec2)>> {
         .collect()
 }
 
+/// A driver held at a crossing for a while sometimes toots, not every time.
+fn horns(g: &mut Game) {
+    let mut honk = false;
+    for (i, c) in g.sim.cars.iter().enumerate() {
+        let before = g.waits.get(i).copied().unwrap_or(0.0);
+        if before < 2.0 && c.wait >= 2.0 && macroquad::rand::gen_range(0.0, 1.0) < 0.5 {
+            honk = true;
+        }
+    }
+    g.waits = g.sim.cars.iter().map(|c| c.wait).collect();
+    if honk {
+        platform::play(Sfx::Horn);
+    }
+}
+
 fn step_sim(g: &mut Game) {
     let dt = get_frame_time().min(0.1);
     g.acc += if g.menu { 0.0 } else { dt * g.speed as f32 };
@@ -1233,6 +1253,18 @@ fn step_sim(g: &mut Game) {
         }
     }
     g.trip_cooldown -= dt;
+    // The music follows the town: how busy it is, how many colours, and how close a shop is to overflowing.
+    let s = &g.sim;
+    let mode = if s.game_over {
+        platform::MusicMode::GameOver
+    } else if g.menu || g.speed == 0 || s.offer.is_some() {
+        platform::MusicMode::Held
+    } else {
+        platform::MusicMode::Playing
+    };
+    let moving = s.cars.iter().filter(|c| c.state != little_lanes::sim::CarState::Idle).count();
+    let danger = s.dests.iter().map(|d| d.overflow).fold(0.0, f32::max);
+    platform::music(moving, s.colors_available(), s.week, danger, mode, g.map.index());
     for e in std::mem::take(&mut g.sim.events) {
         match e {
             Event::TripDone => {

@@ -9,6 +9,7 @@ extern "C" {
     fn ll_store_get(key: i32) -> i32;
     fn ll_store_set(key: i32, value: i32);
     fn ll_beep(kind: i32);
+    fn ll_music(cars: i32, colors: i32, week: i32, danger: i32, mode: i32, map: i32);
 }
 
 thread_local! {
@@ -61,6 +62,30 @@ pub enum Sfx {
     Pop = 4,
     GameOver = 5,
     Click = 6,
+    Erase = 7,
+    Horn = 8,
+}
+
+/// What the music should be doing: it is generated in the browser from these numbers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MusicMode {
+    /// Title screen and map previews: a slow pad only.
+    Calm = 0,
+    Playing = 1,
+    /// Paused, a menu or an upgrade card: the music stays but thins out.
+    Held = 2,
+    GameOver = 3,
+}
+
+/// Tell the music engine about the town. Cheap: call it every frame.
+pub fn music(cars_moving: usize, colors: usize, week: u32, danger: f32, mode: MusicMode, map: usize) {
+    let mode = if muted() { -1 } else { mode as i32 };
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        ll_music(cars_moving as i32, colors as i32, week as i32, (danger * 100.0) as i32, mode, map as i32)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (cars_moving, colors, week, danger, mode, map);
 }
 
 pub fn muted() -> bool {

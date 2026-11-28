@@ -1,7 +1,7 @@
-commit: 5e2122f5e58b7196bb42c2291338b9b9fd0d07df  ref: polish  run: 46120039922
+commit: 7b445999018c02b28f18ee80807f759434d39d92  ref: polish  run: 46120198741
 -----
 [1m[92m   Compiling[0m little-lanes-core v0.2.0 (/home/runner/work/LittleLanes/LittleLanes)
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 15.03s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 14.41s
 [1m[92m     Running[0m unittests src/lib.rs (target/release/build/little-lanes-core/ab003fde1f472e37/out/little_lanes_core-ab003fde1f472e37)
 
 running 0 tests
@@ -31,8 +31,8 @@ test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 running 5 tests
 test classic_roads_can_always_be_removed ... ok
 test modes_have_independent_state ... ok
-test expert_roads_set_after_ten_seconds ... ok
 test expert_snapshot_lists_drying_roads ... ok
+test expert_roads_set_after_ten_seconds ... ok
 test creative_has_unlimited_upgrades_no_offers_and_no_game_over ... ok
 
 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
@@ -41,16 +41,16 @@ test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 13 tests
 test a_road_connection_costs_one_concrete_and_removal_refunds_it ... ok
-test duplicate_and_far_connections_are_refused ... ok
-test crossing_diagonals_are_refused ... ok
 test diagonal_roads_cost_the_same_as_straight_ones ... ok
+test crossing_diagonals_are_refused ... ok
+test duplicate_and_far_connections_are_refused ... ok
 test lights_and_roundabouts_only_go_on_junctions ... ok
-test motorways_need_two_cells_and_an_upgrade ... ok
 test mountains_need_a_tunnel ... ok
+test motorways_need_two_cells_and_an_upgrade ... ok
 test running_out_of_concrete_stops_building ... ok
 test the_first_offer_comes_after_one_week_with_two_choices ... ok
-test the_week_clock_waits_while_an_offer_is_open ... ok
 test water_needs_a_bridge_and_one_bridge_covers_a_whole_crossing ... ok
+test the_week_clock_waits_while_an_offer_is_open ... ok
 test rules_respect_their_start_week ... ok
 test motorway_packages_get_more_likely_the_longer_they_are_missing ... ok
 
@@ -60,9 +60,9 @@ test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 
 running 10 tests
 test catalog_lists_every_city_once ... ok
+test an_unconnected_town_gets_overcrowded ... ok
 test a_connected_house_delivers_pins_and_scores ... ok
 test buildings_never_overlap_water_roads_or_each_other ... ok
-test an_unconnected_town_gets_overcrowded ... ok
 test houses_appear_for_each_destination_colour ... ok
 test erasing_a_road_under_a_car_does_not_lose_it ... ok
 test snapshot_is_always_valid_numbers ... ok

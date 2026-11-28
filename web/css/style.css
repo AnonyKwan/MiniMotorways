@@ -99,6 +99,8 @@ body.photo #hud, body.photo #tools, body.photo .coach { display: none !important
 .opt small { color: var(--muted); }
 .opt input[type="range"] { width: 45%; }
 .opt select { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+#pause { z-index: 20; }
+#options { z-index: 30; }
 .stack { display: grid; gap: 8px; }
 .stack button { padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); text-align: left; }
 .card.resume { border-color: var(--accent); }

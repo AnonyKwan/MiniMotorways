@@ -57,5 +57,5 @@ export function describe(save, cities) {
 }
 
 export function validSave(s) {
-  return s && s.v === SAVE_VERSION && Number.isInteger(s.city) && Number.isFinite(s.seed) && Array.isArray(s.log) && Number.isFinite(s.tick);
+  return Boolean(s) && s.v === SAVE_VERSION && Number.isInteger(s.city) && Number.isFinite(s.seed) && Array.isArray(s.log) && Number.isFinite(s.tick);
 }

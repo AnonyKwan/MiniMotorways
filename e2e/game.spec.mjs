@@ -35,7 +35,7 @@ test('start a map, let the town grow, draw and erase a road', async ({ page }) =
   await expect(page.locator('#help')).toBeVisible(); // first-run help
   await page.locator('#btn-help-close').click();
   await expect(page.locator('#hud-city')).toHaveText('Beijing');
-  expect(await page.evaluate(() => window.__ll.use3d), 'the 3D view is running').toBe(true);
+  expect(await page.evaluate(() => window.__ll.use3d || 'no 3D: ' + window.__ll.renderError), 'the 3D view is running').toBe(true);
 
   // fast-forward the simulation so the town has some buildings
   await page.evaluate(() => { for (let i = 0; i < 400; i++) window.__ll.core.step(0.1); });
@@ -152,7 +152,7 @@ test("pick Expert mode, or start today's map", async ({ page }) => {
   await page.locator('#btn-daily').click();
   await expect(page.locator('#hud')).toBeVisible();
   expect(await page.evaluate(() => window.__ll.statics.mode)).toBe(0);
-  expect(await page.evaluate(() => window.__ll.use3d), 'still 3D after several games').toBe(true);
+  expect(await page.evaluate(() => window.__ll.use3d || 'no 3D: ' + window.__ll.renderError), 'still 3D after several games').toBe(true);
   await page.screenshot({ path: 'shots/daily.png' });
   expect(errors).toEqual([]);
 });

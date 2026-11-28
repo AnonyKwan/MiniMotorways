@@ -73,6 +73,7 @@ async function boot() {
 function initRenderer() {
   const want = params.get('render') ? params.get('render') === '3d' : loadPref('render3d', true);
   app.use3d = false;
+  if (want && !webglAvailable()) app.renderError = 'WebGL2 not available';
   if (want && webglAvailable()) {
     try {
       app.r3 = app.r3 || new Renderer3D($('stage3d'));
@@ -80,7 +81,7 @@ function initRenderer() {
       app.use3d = true;
       $('stage3d').addEventListener('webglcontextlost', (e) => { e.preventDefault(); app.use3d = false; $('stage3d').hidden = true; $('btn-render').textContent = '2D'; app.layer = null; }, { once: true });
     }
-    catch (e) { console.warn('3D view unavailable, using the flat view', e); app.r3 = null; }
+    catch (e) { console.warn('3D view unavailable, using the flat view', e); app.renderError = String((e && e.message) || e); app.r3 = null; }
   }
   $('stage3d').hidden = !app.use3d;
   $('btn-render').textContent = app.use3d ? '3D' : '2D';

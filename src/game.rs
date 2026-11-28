@@ -149,6 +149,8 @@ pub struct Game {
     pub mods: Mods,
     pub stats: Stats,
     pub eff: f32,
+    /// Road connections removed by the last erase, so it can be undone.
+    pub last_erase: Vec<(u32, u32)>,
     pub w: i32,
     pub h: i32,
     pub rng: Rng,
@@ -240,6 +242,7 @@ impl Game {
             mods,
             stats: Stats::default(),
             eff: 0.0,
+            last_erase: Vec::new(),
             w: city.w,
             h: city.h,
             rng,
@@ -525,5 +528,34 @@ impl Game {
         let x1 = ((cx + w / 2.0).ceil() as i32).min(self.w);
         let y1 = ((cy + h / 2.0).ceil() as i32).min(self.h);
         (x0, y0, x1, y1)
+    }
+}
+
+impl Game {
+    /// After a loss the town can carry on as Endless: no game over, no timers.
+    pub fn continue_endless(&mut self) {
+        self.mode = MODE_ENDLESS;
+        self.over = false;
+        self.over_dest = -1;
+        for d in self.dests.iter_mut() {
+            d.ot = 0.0;
+            d.ospeed = 0.0;
+        }
+    }
+
+    /// Puts back the roads taken away by the last erase (as far as concrete allows).
+    pub fn undo_erase(&mut self) -> i32 {
+        let edges = std::mem::take(&mut self.last_erase);
+        let mut any = false;
+        for (a, b) in edges {
+            if self.add_road(a, b) == crate::roads::OK {
+                any = true;
+            }
+        }
+        if any {
+            crate::roads::OK
+        } else {
+            crate::roads::E_NOTHING
+        }
     }
 }

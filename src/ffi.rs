@@ -179,6 +179,29 @@ pub extern "C" fn ll_toggle_roundabout(c: u32) -> i32 {
     with_game(|g| g.toggle_roundabout(c))
 }
 
+/// Starts a new erase gesture (what it removes can be undone together).
+#[no_mangle]
+pub extern "C" fn ll_begin_erase() {
+    if let Some(g) = game() {
+        g.last_erase.clear();
+    }
+}
+
+/// Puts back the roads removed by the last erase.
+#[no_mangle]
+pub extern "C" fn ll_undo() -> i32 {
+    with_game(|g| g.undo_erase())
+}
+
+/// Carries a lost game on as Endless.
+#[no_mangle]
+pub extern "C" fn ll_continue_endless() -> i32 {
+    with_game(|g| {
+        g.continue_endless();
+        0
+    })
+}
+
 #[no_mangle]
 pub extern "C" fn ll_choose_upgrade(i: u32) -> i32 {
     with_game(|g| g.choose_upgrade(i as usize))

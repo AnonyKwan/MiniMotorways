@@ -226,6 +226,7 @@ impl Game {
             if self.conn[c as usize] & (1 << d) != 0 {
                 if let Some(m) = self.step_cell(c, d) {
                     if self.remove_road(c, m) == OK {
+                        self.last_erase.push((c, m));
                         changed = true;
                     }
                 }

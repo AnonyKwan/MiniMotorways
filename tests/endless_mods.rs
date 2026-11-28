@@ -204,3 +204,33 @@ fn stats_count_what_you_did() {
     assert_eq!(g.stats.deleted, 1);
     assert!(g.snapshot().contains("\"stats\":["));
 }
+
+#[test]
+fn an_erase_can_be_undone() {
+    let mut g = Game::new(city_index("beijing"), 1);
+    let (x, y) = land_run(&g, 4).unwrap();
+    let cells: Vec<u32> = (0..4).map(|k| g.cell(x + k, y)).collect();
+    for w in cells.windows(2) {
+        assert_eq!(g.add_road(w[0], w[1]), OK);
+    }
+    assert_eq!(g.used(K_CONCRETE), 3);
+    g.last_erase.clear();
+    assert_eq!(g.erase_cell(cells[1]), OK);
+    assert_eq!(g.used(K_CONCRETE), 1);
+    assert_eq!(g.undo_erase(), OK);
+    assert_eq!(g.used(K_CONCRETE), 3);
+    assert!(g.has_edge(cells[0], cells[1]) && g.has_edge(cells[1], cells[2]));
+    assert_eq!(g.undo_erase(), E_NOTHING, "nothing left to undo");
+}
+
+#[test]
+fn a_lost_town_can_carry_on_as_endless() {
+    let mut g = Game::new(city_index("beijing"), 1);
+    run(&mut g, 400.0);
+    assert!(g.over);
+    g.continue_endless();
+    assert!(!g.over);
+    run(&mut g, 120.0);
+    assert!(!g.over, "endless has no game over");
+    assert_eq!(g.mode, MODE_ENDLESS);
+}
